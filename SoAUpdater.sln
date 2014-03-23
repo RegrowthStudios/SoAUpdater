@@ -8,13 +8,19 @@ EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
+		MinSizeRel|Win32 = MinSizeRel|Win32
 		Release|Win32 = Release|Win32
+		RelWithDebInfo|Win32 = RelWithDebInfo|Win32
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{A8DBBF42-8371-491C-94FF-74DEF047ED9C}.Debug|Win32.ActiveCfg = Debug|Win32
 		{A8DBBF42-8371-491C-94FF-74DEF047ED9C}.Debug|Win32.Build.0 = Debug|Win32
+		{A8DBBF42-8371-491C-94FF-74DEF047ED9C}.MinSizeRel|Win32.ActiveCfg = Release|Win32
+		{A8DBBF42-8371-491C-94FF-74DEF047ED9C}.MinSizeRel|Win32.Build.0 = Release|Win32
 		{A8DBBF42-8371-491C-94FF-74DEF047ED9C}.Release|Win32.ActiveCfg = Release|Win32
 		{A8DBBF42-8371-491C-94FF-74DEF047ED9C}.Release|Win32.Build.0 = Release|Win32
+		{A8DBBF42-8371-491C-94FF-74DEF047ED9C}.RelWithDebInfo|Win32.ActiveCfg = Release|Win32
+		{A8DBBF42-8371-491C-94FF-74DEF047ED9C}.RelWithDebInfo|Win32.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

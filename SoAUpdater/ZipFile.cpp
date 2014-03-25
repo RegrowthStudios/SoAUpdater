@@ -1,12 +1,45 @@
 //****** ZipFile.cpp ******
+
 #include "stdafx.h"
-#include "ZipFile.h"
+#include <Windows.h>
 #include <ZLIB/unzip.c>
 #include <ZLIB/ioapi.c>
+#include "ZipFile.h"
 #include <iostream>
+#include <stdio.h>
 using namespace std;
 
+#define READ_SIZE 8192
 
+void MakeDirectory(const char *fileName)
+{
+	size_t origsize = strlen(fileName) + 1;
+	const size_t newsize = 100;
+	size_t convertedChars = 0;
+	wchar_t wcstring[FILENAME_MAX];
+	mbstowcs_s(&convertedChars, wcstring, origsize - 1, fileName, _TRUNCATE);
+
+	DWORD dwAttrib = GetFileAttributes(wcstring);
+	if (!(dwAttrib != INVALID_FILE_ATTRIBUTES &&
+		(dwAttrib & FILE_ATTRIBUTE_DIRECTORY))){
+
+		if (!CreateDirectory(wcstring, NULL)){
+			LPVOID lpMsgBuf;
+			DWORD dw = GetLastError();
+
+			FormatMessage(
+				FORMAT_MESSAGE_ALLOCATE_BUFFER |
+				FORMAT_MESSAGE_FROM_SYSTEM |
+				FORMAT_MESSAGE_IGNORE_INSERTS,
+				NULL,
+				dw,
+				MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+				(LPTSTR)&lpMsgBuf,
+				0, NULL);
+			_tprintf(L"%s", lpMsgBuf);
+		}
+	}
+}
 
 //constructor for the zipfile. You must initialize it with the zipfile name
 ZipFile::ZipFile(string fileName) : zipfile(NULL), failure(0) // <-initialization list. Its a fast way to initialize variables
@@ -47,7 +80,6 @@ ZipFile::~ZipFile()
 
 unsigned char *ZipFile::readFile(string fileName, size_t &fileSize)
 {
-	const int READ_SIZE = 8196;
 	const int MAX_FILENAME = 256;
 	const char dir_delimiter = '/';
 
@@ -113,6 +145,110 @@ unsigned char *ZipFile::readFile(string fileName, size_t &fileSize)
 		}
 	}
 	return NULL;
+}
+
+int ZipFile::extractZip(string outputDir)
+{
+	// Buffer to hold data read from the zip file.
+	char read_buffer[READ_SIZE];
+
+	//check if output dir exists and make it if not
+	MakeDirectory(outputDir.c_str());
+
+	// Loop to extract all files
+	uLong i;
+	for (i = 0; i < global_info.number_entry; ++i)
+	{
+		// Get info about current file.
+		unz_file_info file_info;
+		char filename[FILENAME_MAX];
+		char outFileName[FILENAME_MAX];
+		if (unzGetCurrentFileInfo(
+			zipfile,
+			&file_info,
+			filename,
+			FILENAME_MAX,
+			NULL, 0, NULL, 0) != UNZ_OK)
+		{
+			printf("could not read file info\n");
+			unzClose(zipfile);
+			return -1;
+		}
+		//add the target dir onto the filename
+		strcpy(outFileName, (outputDir + filename).c_str());
+
+		// Check if this entry is a directory or file.
+		const size_t filename_length = strlen(filename);
+		if (filename[filename_length - 1] == '/')
+		{
+			// Entry is a directory, so create it.
+			printf("dir:%s\n", filename);
+		
+			//check if it already exists and make it if not
+			MakeDirectory(outFileName);
+		}
+		else
+		{
+			// Entry is a file, so extract it.
+			printf("file:%s\n", filename);
+			
+			if (unzOpenCurrentFile(zipfile) != UNZ_OK)
+			{
+				printf("could not open file\n");
+				unzClose(zipfile);
+				zipfile = NULL;
+				return -1;
+			}
+
+			// Open a file to write out the data.
+			FILE *out = fopen(outFileName, "wb");
+			if (out == NULL)
+			{
+				printf("could not open destination file\n");
+				unzCloseCurrentFile(zipfile);
+				unzClose(zipfile);
+				zipfile = NULL;
+				return -1;
+			}
+
+			int error = UNZ_OK;
+			do
+			{
+				error = unzReadCurrentFile(zipfile, read_buffer, READ_SIZE);
+				if (error < 0)
+				{
+					printf("error %d\n", error);
+					unzCloseCurrentFile(zipfile);
+					unzClose(zipfile);
+					zipfile = NULL;
+					return -1;
+				}
+
+				// Write data to file.
+				if (error > 0)
+				{
+					fwrite(read_buffer, error, 1, out); // You should check return of fwrite...
+				}
+			} while (error > 0);
+
+			fclose(out);
+		}
+
+		unzCloseCurrentFile(zipfile);
+
+		// Go the the next entry listed in the zip file.
+		if ((i + 1) < global_info.number_entry)
+		{
+			if (unzGoToNextFile(zipfile) != UNZ_OK)
+			{
+				printf("cound not read next file\n");
+				unzClose(zipfile);
+				zipfile = NULL;
+				return -1;
+			}
+		}
+	}
+	return 0;
 }
 
 //checks if the zipfile failed to open

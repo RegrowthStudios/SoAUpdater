@@ -12,6 +12,7 @@ public:
 	ZipFile(string fileName);
 	~ZipFile();
 	unsigned char *readFile(string fileName, size_t &fileSize);
+	int extractZip(string outputDir);
 	bool fail();
 private:
 	unzFile zipfile;

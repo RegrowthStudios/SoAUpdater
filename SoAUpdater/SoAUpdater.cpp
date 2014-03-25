@@ -28,6 +28,7 @@ static int xferinfo(void *p,
 	struct myprogress *myp = (struct myprogress *)p;
 	CURL *curl = myp->curl;
 	double curtime = 0;
+	static int oldDlRatio = -1;
 
 	curl_easy_getinfo(curl, CURLINFO_TOTAL_TIME, &curtime);
 
@@ -38,9 +39,13 @@ static int xferinfo(void *p,
 	//	myp->lastruntime = curtime;
 	//	fprintf(stderr, "TOTAL TIME: %f \r\n", curtime);
 	//}
+	double dlRatio = (double)dlnow / dltotal * 100.0;
 	if (dltotal > 0){
-		fprintf(stdout, "DOWN: %" CURL_FORMAT_CURL_OFF_T " of %" CURL_FORMAT_CURL_OFF_T
-			"\r\n", dlnow, dltotal);
+		//output is slow as shit, so lets cut out unneeded output.
+		if ((int)dlRatio != oldDlRatio){
+			oldDlRatio = (int)dlRatio;
+			fprintf(stdout, "%.0lf%% of %.1f MB\n", dlRatio, dltotal/1024.0f/1024.0f);
+		}
 	}
 	//if (dlnow > STOP_DOWNLOAD_AFTER_THIS_MANY_BYTES)
 	//	return 1;
@@ -126,7 +131,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	}
 
 	// Buffer to hold data read from the zip file.
-	char read_buffer[MAXCHAR];
+	char read_buffer[READ_SIZE];
 
 	// Loop to extract all files
 	uLong i;

@@ -12,68 +12,14 @@ using namespace std;
 
 size_t write_data(void *ptr, size_t size, size_t nmemb, FILE *stream);
 static int xferinfo(void *p, curl_off_t dltotal, curl_off_t dlnow, curl_off_t ultotal, curl_off_t ulnow);
+int curlLoadFileFromUrl(const char *url);
+
+const char *bodyfilename = "soa.zip";
 
 //I like to have main at the top. call me crazy
 int _tmain(int argc, _TCHAR* argv[])
 {
-	static const char *bodyfilename = "soa.zip";
-
-
-
-	CURL *curl_handle;
-//	struct myprogress prog;
-
-	FILE *bodyfile;
-
-	//curl_global_init(CURL_GLOBAL_ALL);
-
-	///* init the curl session */
-	//curl_handle = curl_easy_init();
-	//if (curl_handle){
-	//	prog.lastruntime = 0;
-	//	prog.curl = curl_handle;
-	//	/* set URL to get */
-	//	curl_easy_setopt(curl_handle, CURLOPT_URL, "http://seedofandromeda.com/SeedofAndromeda/Game/Versions/0.1.5/SOA_0.1.5.zip");
-
-	//	/* no progress meter please */
-	//	curl_easy_setopt(curl_handle, CURLOPT_NOPROGRESS, 0L);
-	//	curl_easy_setopt(curl_handle, CURLOPT_XFERINFOFUNCTION, xferinfo);
-	//	/* pass the struct pointer into the xferinfo function, note that this is
-	//	an alias to CURLOPT_PROGRESSDATA */
-	//	curl_easy_setopt(curl_handle, CURLOPT_XFERINFODATA, &prog);
-
-	//	/* send all data to this function  */
-	//	curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, write_data);
-
-	//	/* we tell libcurl to follow redirection */
-	//	curl_easy_setopt(curl_handle, CURLOPT_FOLLOWLOCATION, 1L);
-
-	//	/* open the file */
-	//	fopen_s(&bodyfile, bodyfilename, "wb");
-	//	if (bodyfile == NULL) {
-	//		curl_easy_cleanup(curl_handle);
-	//		return -1;
-	//	}
-
-	//	/* we want the body be written to this file handle instead of stdout */
-	//	curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, bodyfile);
-	//	CURLcode res = CURLE_OK;
-	//	/* get it! */
-	//	res = curl_easy_perform(curl_handle);
-
-	//	/* close the body file */
-	//	fclose(bodyfile);
-
-	//	/* cleanup curl stuff */
-	//	curl_easy_cleanup(curl_handle);
-	//	if (res != CURLE_OK){
-	//		fprintf(stderr, "%s\n", curl_easy_strerror(res));
-	//		return -1;
-	//	}
-	//}
-	//else{
-	//	return -1;
-	//}
+	curlLoadFileFromUrl("http://seedofandromeda.com/SeedofAndromeda/Game/Versions/0.1.5/SOA_0.1.5.zip");
 
 	//open zip file
 	ZipFile zipFile(bodyfilename);
@@ -138,4 +84,60 @@ static int xferinfo(void *p,
 	return 0;
 }
 
+int curlLoadFileFromUrl(const char *url)
+{
+	CURL *curl_handle;
+	struct myprogress prog;
 
+	FILE *bodyfile;
+
+	curl_global_init(CURL_GLOBAL_ALL);
+
+	/* init the curl session */
+	curl_handle = curl_easy_init();
+	if (curl_handle){
+		prog.lastruntime = 0;
+		prog.curl = curl_handle;
+		/* set URL to get */
+		curl_easy_setopt(curl_handle, CURLOPT_URL, "http://seedofandromeda.com/SeedofAndromeda/Game/Versions/0.1.5/SOA_0.1.5.zip");
+
+		/* no progress meter please */
+		curl_easy_setopt(curl_handle, CURLOPT_NOPROGRESS, 0L);
+		curl_easy_setopt(curl_handle, CURLOPT_XFERINFOFUNCTION, xferinfo);
+		/* pass the struct pointer into the xferinfo function, note that this is
+		an alias to CURLOPT_PROGRESSDATA */
+		curl_easy_setopt(curl_handle, CURLOPT_XFERINFODATA, &prog);
+
+		/* send all data to this function  */
+		curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, write_data);
+
+		/* we tell libcurl to follow redirection */
+		curl_easy_setopt(curl_handle, CURLOPT_FOLLOWLOCATION, 1L);
+
+		/* open the file */
+		fopen_s(&bodyfile, bodyfilename, "wb");
+		if (bodyfile == NULL) {
+			curl_easy_cleanup(curl_handle);
+			return -1;
+		}
+
+		/* we want the body be written to this file handle instead of stdout */
+		curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, bodyfile);
+		CURLcode res = CURLE_OK;
+		/* get it! */
+		res = curl_easy_perform(curl_handle);
+
+		/* close the body file */
+		fclose(bodyfile);
+
+		/* cleanup curl stuff */
+		curl_easy_cleanup(curl_handle);
+		if (res != CURLE_OK){
+			fprintf(stderr, "%s\n", curl_easy_strerror(res));
+			return -1;
+		}
+	}
+	else{
+		return -1;
+	}
+}

@@ -2,9 +2,12 @@
 //
 #include "stdafx.h"
 #include <iostream>
+#include <fstream>
+#include <sstream>
 #include "ZipFile.h"
 #include "curl/curl.h"
 #include <stdio.h>
+#include <direct.h>
 
 using namespace std;
 
@@ -12,30 +15,105 @@ using namespace std;
 
 size_t write_data(void *ptr, size_t size, size_t nmemb, FILE *stream);
 static int xferinfo(void *p, curl_off_t dltotal, curl_off_t dlnow, curl_off_t ultotal, curl_off_t ulnow);
-int curlLoadFileFromUrl(const char *url);
+int curlLoadFileFromUrl(string url, string savefilename);
+std::wstring ExpandEnvStrings(const std::wstring& source);
 
-const char *bodyfilename = "soa.zip";
 
 //I like to have main at the top. call me crazy
 int _tmain(int argc, _TCHAR* argv[])
 {
-	curlLoadFileFromUrl("http://seedofandromeda.com/SeedofAndromeda/Game/Versions/0.1.5/SOA_0.1.5.zip");
+	string dldir = "";
+	bool useappdata = false;
+	ifstream testfile("version.txt");
+	if (!testfile){
+		dldir = "%appdata%\\SoA\\";
 
-	//open zip file
-	ZipFile zipFile(bodyfilename);
-	if (zipFile.fail()){
-		printf("%s: not found\n", bodyfilename);
+		wstring temp = ExpandEnvStrings(L"%appdata%\\SoA\\");
+		dldir.resize(temp.size()); //make enough room in copy for the string 
+		std::copy(temp.begin(), temp.end(), dldir.begin()); //copy it 
+		cout << "version.txt was not found here, trying " << dldir << endl;
+		useappdata = true;
+		_mkdir(dldir.c_str());
+	}
+	else{
+		testfile.close();
+	}
+	ifstream ifile(dldir + "version.txt");
+	std::string line;
+	int version = 0;
+	int i = 0;
+	if (ifile) {
+		while (std::getline(ifile, line)) {
+			std::cout << "Current version line " << i << ": " << line << endl;
+			version = atoi(line.c_str());
+			break;
+			i++;
+		}
+		ifile.close();
+	}
+	std::cout << "Checking for updates... Current version is " << version << endl;
+	std::stringstream urlstrm;
+	urlstrm << "http://seedofandromeda.com/update.php?version=" << version;
+	string url = urlstrm.str();
+	cout << "Downloading from " << url << endl;
+	curlLoadFileFromUrl(url, dldir + "latest.txt");
+
+	std::ifstream input(dldir + "latest.txt");
+	if (!input){
+		cout << "latest.txt did not get downloaded!" << endl;
 		return -1;
 	}
-
-	//extract zip file
-	if (zipFile.extractZip("test/") != 0){
-		printf("failed to extract zip file.");
-		int a;
-		cin >> a;
-		return -2;
+	i = 0;
+	bool update = false;
+	while (std::getline(input, line)) {
+		std::cout << "Latest version line " << i << ": " << line << std::endl;
+		if (i == 0){
+			if (atoi(line.c_str()) > version) {
+				cout << "Update found, downloading..." << endl;
+			}
+			else{
+				cout << "No update found!" << endl;
+				break;
+			}
+		}
+		else if (i == 1){
+			curlLoadFileFromUrl(line, dldir + "latest.zip");
+			update = true;
+			break;
+		}
+		i++;
 	}
+	input.close();
+	if (update){
+		//open zip file
+		ZipFile zipFile(dldir + "latest.zip");
+		if (zipFile.fail()){
+			printf("%s: not found\n", dldir + "latest.zip");
+			return -1;
+		}
 
+		//extract zip file
+		if (zipFile.extractZip(dldir) != 0){
+			printf("failed to extract zip file.");
+			int a;
+			cin >> a;
+			return -2;
+		}
+		else{
+			if (remove((dldir + "latest.zip").c_str()) != 0){
+				cout << "Failed to remove latest.txt!" << endl;
+			}
+			if (remove((dldir + "version.txt").c_str()) != 0){
+				cout << "Failed to remove latest.txt!" << endl;
+			}
+			if (rename((dldir + "latest.txt").c_str(), (dldir + "version.txt").c_str()) != 0){
+				cout << "Failed to rename latest.txt to version.txt!" << endl;
+			}
+		}
+	}
+	cout << "Starting up SoA..." << endl;
+	_chdir((dldir + "Release\\").c_str());
+	system((dldir + "Release\\SoA.exe").c_str());
 	return 0;
 }
 
@@ -76,7 +154,7 @@ static int xferinfo(void *p,
 		//output is slow as shit, so lets cut out unneeded output.
 		if ((int)dlRatio != oldDlRatio){
 			oldDlRatio = (int)dlRatio;
-			fprintf(stdout, "%.0lf%% of %.1f MB\n", dlRatio, dltotal/1024.0f/1024.0f);
+			fprintf(stdout, "%.0lf%% of %.1f MB\n", dlRatio, dltotal / 1024.0f / 1024.0f);
 		}
 	}
 	//if (dlnow > STOP_DOWNLOAD_AFTER_THIS_MANY_BYTES)
@@ -84,7 +162,7 @@ static int xferinfo(void *p,
 	return 0;
 }
 
-int curlLoadFileFromUrl(const char *url)
+int curlLoadFileFromUrl(string url, string savefilename)
 {
 	CURL *curl_handle;
 	struct myprogress prog;
@@ -99,7 +177,7 @@ int curlLoadFileFromUrl(const char *url)
 		prog.lastruntime = 0;
 		prog.curl = curl_handle;
 		/* set URL to get */
-		curl_easy_setopt(curl_handle, CURLOPT_URL, "http://seedofandromeda.com/SeedofAndromeda/Game/Versions/0.1.5/SOA_0.1.5.zip");
+		curl_easy_setopt(curl_handle, CURLOPT_URL, url.c_str());
 
 		/* no progress meter please */
 		curl_easy_setopt(curl_handle, CURLOPT_NOPROGRESS, 0L);
@@ -115,7 +193,7 @@ int curlLoadFileFromUrl(const char *url)
 		curl_easy_setopt(curl_handle, CURLOPT_FOLLOWLOCATION, 1L);
 
 		/* open the file */
-		fopen_s(&bodyfile, bodyfilename, "wb");
+		fopen_s(&bodyfile, savefilename.c_str(), "wb");
 		if (bodyfile == NULL) {
 			curl_easy_cleanup(curl_handle);
 			return -1;
@@ -140,4 +218,23 @@ int curlLoadFileFromUrl(const char *url)
 	else{
 		return -1;
 	}
+}
+
+std::wstring ExpandEnvStrings(const std::wstring& source)
+{
+	DWORD len;
+	std::wstring result;
+	len = ::ExpandEnvironmentStringsW(source.c_str(), 0, 0);
+	if (len == 0)
+	{
+		return result;
+	}
+	result.resize(len);
+	len = ::ExpandEnvironmentStringsW(source.c_str(), &result[0], len);
+	if (len == 0)
+	{
+		return result;
+	}
+	result.pop_back(); //Get rid of extra null
+	return result;
 }

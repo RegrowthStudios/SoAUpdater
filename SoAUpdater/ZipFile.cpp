@@ -154,11 +154,14 @@ int ZipFile::extractZip(string outputDir)
 
 	//check if output dir exists and make it if not
 	MakeDirectory(outputDir.c_str());
-
+	printf("\n");
 	// Loop to extract all files
 	uLong i;
+	double percentage = 0;
 	for (i = 0; i < global_info.number_entry; ++i)
 	{
+		percentage = (double)i / (double)global_info.number_entry * 100.0;
+
 		// Get info about current file.
 		unz_file_info file_info;
 		char filename[FILENAME_MAX];
@@ -182,7 +185,7 @@ int ZipFile::extractZip(string outputDir)
 		if (filename[filename_length - 1] == '/')
 		{
 			// Entry is a directory, so create it.
-			printf("dir:%s\n", filename);
+			printf("\r%.0lf%% - dir: %65.65s", percentage, filename);
 		
 			//check if it already exists and make it if not
 			MakeDirectory(outFileName);
@@ -190,11 +193,11 @@ int ZipFile::extractZip(string outputDir)
 		else
 		{
 			// Entry is a file, so extract it.
-			printf("file:%s\n", filename);
+			printf("\r%.0lf%% - file: %65.65s", percentage, filename);
 			
 			if (unzOpenCurrentFile(zipfile) != UNZ_OK)
 			{
-				printf("could not open file\n");
+				printf("\ncould not open file\n");
 				unzClose(zipfile);
 				zipfile = NULL;
 				return -1;
@@ -204,7 +207,7 @@ int ZipFile::extractZip(string outputDir)
 			FILE *out = fopen(outFileName, "wb");
 			if (out == NULL)
 			{
-				printf("could not open destination file\n");
+				printf("\ncould not open destination file\n");
 				unzCloseCurrentFile(zipfile);
 				unzClose(zipfile);
 				zipfile = NULL;
@@ -217,7 +220,7 @@ int ZipFile::extractZip(string outputDir)
 				error = unzReadCurrentFile(zipfile, read_buffer, READ_SIZE);
 				if (error < 0)
 				{
-					printf("error %d\n", error);
+					printf("\nerror %d\n", error);
 					unzCloseCurrentFile(zipfile);
 					unzClose(zipfile);
 					zipfile = NULL;
@@ -241,13 +244,15 @@ int ZipFile::extractZip(string outputDir)
 		{
 			if (unzGoToNextFile(zipfile) != UNZ_OK)
 			{
-				printf("cound not read next file\n");
+				printf("\ncound not read next file\n");
 				unzClose(zipfile);
 				zipfile = NULL;
 				return -1;
 			}
 		}
 	}
+
+	printf("\n");
 	return 0;
 }
 

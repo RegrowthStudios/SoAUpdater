@@ -100,6 +100,8 @@ int main(int argc, char* argv[])
 	if (!input){
 		cout << "latest.txt did not get downloaded!" << endl;
 		if (version < 1){
+			cout << "Launcher cannot continue, no downloaded version available and update check failed." << endl;
+			system("pause");
 			return -1;
 		}
 	}
@@ -167,21 +169,24 @@ int main(int argc, char* argv[])
 	if (update){
 		curlout = curlLoadFileFromUrl(updateurl, dldir + "latest.zip");
 		cout << "cURL returns " << curlout << endl;
+		cout << "Unpacking the update..." << endl;
 		//open zip file
 		ZipFile zipFile(dldir + "latest.zip");
 		if (zipFile.fail()){
 			printf("%s: not found\n", dldir + "latest.zip");
+			system("pause");
 			return -1;
 		}
 
 		//extract zip file
 		if (zipFile.extractZip(dldir) != 0){
 			printf("failed to extract zip file.");
-			int a;
-			cin >> a;
+			system("pause");
 			return -2;
 		}
 		else{
+			//TODO: Close the zip file so it can be deleted!
+			//zipFile.~ZipFile();
 			if (remove((dldir + "latest.zip").c_str()) != 0){
 				cout << "Failed to remove latest.zip!" << endl;
 			}
@@ -236,7 +241,7 @@ static int xferinfo(void *p,
 		//output is slow as shit, so lets cut out unneeded output.
 		if ((int)dlRatio != oldDlRatio){
 			oldDlRatio = (int)dlRatio;
-			fprintf(stdout, "%.0lf%% of %.1f MB\n", dlRatio, dltotal / 1024.0f / 1024.0f);
+			fprintf(stdout, "\r%.0lf%% of %.1f MB", dlRatio, dltotal / 1024.0f / 1024.0f);
 		}
 	}
 	//if (dlnow > STOP_DOWNLOAD_AFTER_THIS_MANY_BYTES)
@@ -285,7 +290,9 @@ int curlLoadFileFromUrl(string url, string savefilename)
 		curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, bodyfile);
 		CURLcode res = CURLE_OK;
 		/* get it! */
+		cout << endl;
 		res = curl_easy_perform(curl_handle);
+		cout << endl;
 
 		/* close the body file */
 		fclose(bodyfile);

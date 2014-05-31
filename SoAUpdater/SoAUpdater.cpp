@@ -12,7 +12,7 @@
 using namespace std;
 
 //Version of this release
-const int VERSION = 1;
+const int VERSION = 2;
 
 //prototypes
 
@@ -23,24 +23,38 @@ std::wstring ExpandEnvStrings(const std::wstring& source);
 
 
 //I like to have main at the top. call me crazy
-int _tmain(int argc, _TCHAR* argv[])
+int main(int argc, char* argv[])
 {
-	string dldir = "";
-	bool useappdata = false;
-	ifstream testfile("version.txt");
-	if (!testfile){
-		dldir = "%appdata%\\SoA\\";
+	string dldir = ".\\";
 
-		wstring temp = ExpandEnvStrings(L"%appdata%\\SoA\\");
-		dldir.resize(temp.size()); //make enough room in copy for the string 
-		std::copy(temp.begin(), temp.end(), dldir.begin()); //copy it 
-		cout << "version.txt was not found here, trying " << dldir << endl;
-		useappdata = true;
-		_mkdir(dldir.c_str());
+	bool useappdata = false;
+	bool noappdata = false;
+	//cout << argc << " arguments" << endl;
+	for (int i = 0; i < argc; ++i) {
+		cout << argv[i] << endl;
+		if (((string)"-noappdata").compare(argv[i]) == 0){
+			cout << "AppData will not be used!" << endl;
+			noappdata = true;
+		}
 	}
-	else{
-		testfile.close();
+
+	if (!noappdata){
+		ifstream testfile("version.txt");
+		if (!testfile){
+			dldir = "%appdata%\\SoA\\";
+
+			wstring temp = ExpandEnvStrings(L"%appdata%\\SoA\\");
+			dldir.resize(temp.size()); //make enough room in copy for the string 
+			std::copy(temp.begin(), temp.end(), dldir.begin()); //copy it 
+			cout << "version.txt was not found here, trying " << dldir << endl;
+			useappdata = true;
+			_mkdir(dldir.c_str());
+		}
+		else{
+			testfile.close();
+		}
 	}
+
 	ifstream ifile(dldir + "version.txt");
 	std::string line;
 	int version = 0;
@@ -75,72 +89,84 @@ int _tmain(int argc, _TCHAR* argv[])
 	urlstrm << "http://seedofandromeda.com/update.php?version=" << version;
 	string url = urlstrm.str();
 	cout << "Downloading from " << url << endl;
-	curlLoadFileFromUrl(url, dldir + "latest.txt");
+	int curlout = curlLoadFileFromUrl(url, dldir + "latest.txt");
+
+	cout << "cURL returns " << curlout << endl;
+
+	bool update = false;
+	string updateurl = "";
 
 	std::ifstream input(dldir + "latest.txt");
 	if (!input){
 		cout << "latest.txt did not get downloaded!" << endl;
-		return -1;
+		if (version < 1){
+			return -1;
+		}
 	}
-	i = 0;
-	bool update = false;
-	bool updatelauncher = false;
-	string updateurl = "";
-	while (std::getline(input, line)) {
-		std::cout << "Latest version line " << i << ": " << line << std::endl;
-		if (i == 0){
-			if (atoi(line.c_str()) > version) {
-				cout << "Update found, downloading..." << endl;
-				update = true;
-			}
-			else{
-				cout << "No update found!" << endl;
-			}
-		}
-		else if (i == 1 && update){
-			updateurl = line;
-		}
-		else if (i == 2){
-			int latestupdaterver = atoi(line.c_str());
-			if (latestupdaterver > VERSION){
-				if (useappdata && latestupdaterver == newupdaterversion){
-					cout << "Launching updater from " << dldir << endl;
-					_chdir((dldir).c_str());
-					system((dldir + "SoAUpdater.exe").c_str());
-					return 0;
+	else{
+
+		i = 0;
+		bool updatelauncher = false;
+		while (std::getline(input, line)) {
+			std::cout << "Latest version line " << i << ": " << line << std::endl;
+			if (i == 0){
+				if (atoi(line.c_str()) > version) {
+					cout << "Update found, downloading..." << endl;
+					update = true;
 				}
-				else
-					if (useappdata && latestupdaterver > newupdaterversion){
-					updatelauncher = true;
+				else{
+					cout << "No update found!" << endl;
+				}
+			}
+			else if (i == 1 && update){
+				updateurl = line;
+			}
+			else if (i == 2){
+				int latestupdaterver = atoi(line.c_str());
+				if (latestupdaterver > VERSION){
+					if (useappdata && latestupdaterver == newupdaterversion){
+						cout << "Launching updater from " << dldir << endl;
+						_chdir((dldir).c_str());
+						system((dldir + "SoAUpdater.exe -noappdata").c_str());
+						return 0;
 					}
-					else{
-						cout << "New version of SoAUpdater is available to download. Please update as soon as possible." << endl;
+					else
+						if (useappdata && latestupdaterver > newupdaterversion){
+						updatelauncher = true;
+						}
+						else{
+							cout << endl << " <<< New version of SoAUpdater is available to download. Please update as soon as possible. >>>" << endl << endl;
+							system("pause");
+						}
+				}
+			}
+			else if (i == 3 && updatelauncher){
+				cout << "Updating launcher at " << dldir << endl;
+				input.close();
+				curlout = curlLoadFileFromUrl(line, dldir + "SoAUpdater.exe");
+				cout << "cURL returns " << curlout << endl;
+				if (!update){
+					//If no SoA update is available, rename the latest.txt to version.txt to prevent downloading the launcher on every launch
+					if (remove((dldir + "version.txt").c_str()) != 0){
+						cout << "Failed to remove version.txt!" << endl;
 					}
-			}
-		}
-		else if (i == 3 && updatelauncher){
-			cout << "Updating launcher at " << dldir << endl;
-			input.close();
-			curlLoadFileFromUrl(line, dldir + "SoAUpdater.exe");
-			if (!update){
-				//If no SoA update is available, rename the latest.txt to version.txt to prevent downloading the launcher on every launch
-				if (remove((dldir + "version.txt").c_str()) != 0){
-					cout << "Failed to remove version.txt!" << endl;
+					if (rename((dldir + "latest.txt").c_str(), (dldir + "version.txt").c_str()) != 0){
+						cout << "Failed to rename latest.txt to version.txt!" << endl;
+					}
 				}
-				if (rename((dldir + "latest.txt").c_str(), (dldir + "version.txt").c_str()) != 0){
-					cout << "Failed to rename latest.txt to version.txt!" << endl;
-				}
+				cout << "Launching updater from " << dldir << endl;
+				_chdir((dldir).c_str());
+				system((dldir + "SoAUpdater.exe -noappdata").c_str());
+				return 0;
 			}
-			cout << "Launching updater from " << dldir << endl;
-			_chdir((dldir).c_str());
-			system((dldir + "SoAUpdater.exe").c_str());
-			return 0;
+			i++;
 		}
-		i++;
+		input.close();
+
 	}
-	input.close();
 	if (update){
-		curlLoadFileFromUrl(line, dldir + "latest.zip");
+		curlout = curlLoadFileFromUrl(updateurl, dldir + "latest.zip");
+		cout << "cURL returns " << curlout << endl;
 		//open zip file
 		ZipFile zipFile(dldir + "latest.zip");
 		if (zipFile.fail()){

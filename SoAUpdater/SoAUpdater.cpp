@@ -72,7 +72,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	}
 	std::cout << "Checking for updates... Current version is " << version << endl;
 	std::stringstream urlstrm;
-	urlstrm << "http://www.soatest.local/update.php?version=" << version;
+	urlstrm << "http://seedofandromeda.com/update.php?version=" << version;
 	string url = urlstrm.str();
 	cout << "Downloading from " << url << endl;
 	curlLoadFileFromUrl(url, dldir + "latest.txt");
@@ -120,7 +120,17 @@ int _tmain(int argc, _TCHAR* argv[])
 		}
 		else if (i == 3 && updatelauncher){
 			cout << "Updating launcher at " << dldir << endl;
+			input.close();
 			curlLoadFileFromUrl(line, dldir + "SoAUpdater.exe");
+			if (!update){
+				//If no SoA update is available, rename the latest.txt to version.txt to prevent downloading the launcher on every launch
+				if (remove((dldir + "version.txt").c_str()) != 0){
+					cout << "Failed to remove version.txt!" << endl;
+				}
+				if (rename((dldir + "latest.txt").c_str(), (dldir + "version.txt").c_str()) != 0){
+					cout << "Failed to rename latest.txt to version.txt!" << endl;
+				}
+			}
 			cout << "Launching updater from " << dldir << endl;
 			_chdir((dldir).c_str());
 			system((dldir + "SoAUpdater.exe").c_str());
@@ -147,10 +157,10 @@ int _tmain(int argc, _TCHAR* argv[])
 		}
 		else{
 			if (remove((dldir + "latest.zip").c_str()) != 0){
-				cout << "Failed to remove latest.txt!" << endl;
+				cout << "Failed to remove latest.zip!" << endl;
 			}
 			if (remove((dldir + "version.txt").c_str()) != 0){
-				cout << "Failed to remove latest.txt!" << endl;
+				cout << "Failed to remove version.txt!" << endl;
 			}
 			if (rename((dldir + "latest.txt").c_str(), (dldir + "version.txt").c_str()) != 0){
 				cout << "Failed to rename latest.txt to version.txt!" << endl;

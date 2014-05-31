@@ -11,6 +11,9 @@
 
 using namespace std;
 
+//Version of this release
+const int VERSION = 1;
+
 //prototypes
 
 size_t write_data(void *ptr, size_t size, size_t nmemb, FILE *stream);
@@ -41,19 +44,35 @@ int _tmain(int argc, _TCHAR* argv[])
 	ifstream ifile(dldir + "version.txt");
 	std::string line;
 	int version = 0;
+	int newupdaterversion = 0;
 	int i = 0;
 	if (ifile) {
 		while (std::getline(ifile, line)) {
 			std::cout << "Current version line " << i << ": " << line << endl;
-			version = atoi(line.c_str());
-			break;
+			if (i == 0){
+				version = atoi(line.c_str());
+			}
+			else if (i == 2 && useappdata){
+				newupdaterversion = atoi(line.c_str());
+				if (newupdaterversion > VERSION){
+					ifstream newupdater(dldir + "SoAUpdater.exe");
+					if (newupdater){
+						newupdater.close();
+						cout << "Newer version the updater (" << newupdaterversion << " vs " << VERSION << ") found in " << dldir << endl;
+					}
+					else{
+						newupdaterversion = 0;
+					}
+				}
+				break;
+			}
 			i++;
 		}
 		ifile.close();
 	}
 	std::cout << "Checking for updates... Current version is " << version << endl;
 	std::stringstream urlstrm;
-	urlstrm << "http://seedofandromeda.com/update.php?version=" << version;
+	urlstrm << "http://www.soatest.local/update.php?version=" << version;
 	string url = urlstrm.str();
 	cout << "Downloading from " << url << endl;
 	curlLoadFileFromUrl(url, dldir + "latest.txt");
@@ -65,26 +84,53 @@ int _tmain(int argc, _TCHAR* argv[])
 	}
 	i = 0;
 	bool update = false;
+	bool updatelauncher = false;
+	string updateurl = "";
 	while (std::getline(input, line)) {
 		std::cout << "Latest version line " << i << ": " << line << std::endl;
 		if (i == 0){
 			if (atoi(line.c_str()) > version) {
 				cout << "Update found, downloading..." << endl;
+				update = true;
 			}
 			else{
 				cout << "No update found!" << endl;
-				break;
 			}
 		}
-		else if (i == 1){
-			curlLoadFileFromUrl(line, dldir + "latest.zip");
-			update = true;
-			break;
+		else if (i == 1 && update){
+			updateurl = line;
+		}
+		else if (i == 2){
+			int latestupdaterver = atoi(line.c_str());
+			if (latestupdaterver > VERSION){
+				if (useappdata && latestupdaterver == newupdaterversion){
+					cout << "Launching updater from " << dldir << endl;
+					_chdir((dldir).c_str());
+					system((dldir + "SoAUpdater.exe").c_str());
+					return 0;
+				}
+				else
+					if (useappdata && latestupdaterver > newupdaterversion){
+					updatelauncher = true;
+					}
+					else{
+						cout << "New version of SoAUpdater is available to download. Please update as soon as possible." << endl;
+					}
+			}
+		}
+		else if (i == 3 && updatelauncher){
+			cout << "Updating launcher at " << dldir << endl;
+			curlLoadFileFromUrl(line, dldir + "SoAUpdater.exe");
+			cout << "Launching updater from " << dldir << endl;
+			_chdir((dldir).c_str());
+			system((dldir + "SoAUpdater.exe").c_str());
+			return 0;
 		}
 		i++;
 	}
 	input.close();
 	if (update){
+		curlLoadFileFromUrl(line, dldir + "latest.zip");
 		//open zip file
 		ZipFile zipFile(dldir + "latest.zip");
 		if (zipFile.fail()){
@@ -113,7 +159,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	}
 	cout << "Starting up SoA..." << endl;
 	_chdir((dldir + "Release\\").c_str());
-	system((dldir + "Release\\SoA.exe").c_str());
+	system("SoA.exe");
 	return 0;
 }
 

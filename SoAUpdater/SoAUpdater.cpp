@@ -12,7 +12,7 @@
 using namespace std;
 
 //Version of this release
-const int VERSION = 3;
+const int VERSION = 4;
 
 //prototypes
 

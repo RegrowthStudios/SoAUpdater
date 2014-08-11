@@ -19,7 +19,9 @@ const int VERSION = 3;
 size_t write_data(void *ptr, size_t size, size_t nmemb, FILE *stream);
 static int xferinfo(void *p, curl_off_t dltotal, curl_off_t dlnow, curl_off_t ultotal, curl_off_t ulnow);
 int curlLoadFileFromUrl(string url, string savefilename);
+static size_t WriteToStringCallback(void *contents, size_t size, size_t nmemb, void *userp);
 std::wstring ExpandEnvStrings(const std::wstring& source);
+void SetStdinEcho(bool enable);
 
 
 //I like to have main at the top. call me crazy
@@ -84,9 +86,125 @@ int main(int argc, char* argv[])
 		}
 		ifile.close();
 	}
+	CURL *curl;
+	CURLcode res;
+	std::string readBuffer;
+	stringstream strstrm;
+	int userid;
+	string username, password, email, title;
+	bool loginok = false;
+
+	curl = curl_easy_init();
+	if (curl) {
+		curl_easy_setopt(curl, CURLOPT_URL, "http://www.seedofandromeda.com/updater/auth.php?action=checklogin"); //TODO: Change to libcurl with ssl so https can be used
+		curl_easy_setopt(curl, CURLOPT_COOKIEFILE, dldir + "session.txt");
+		curl_easy_setopt(curl, CURLOPT_COOKIEJAR, dldir + "session.txt");
+		curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteToStringCallback);
+		curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
+		res = curl_easy_perform(curl);
+		curl_easy_cleanup(curl);
+
+		strstrm << readBuffer;
+		i = 0;
+		while (getline(strstrm, line)){
+			switch (i){
+			case 0:
+				if (line == "OK"){
+					loginok = true;
+				}
+				break;
+			case 1:
+				if (!loginok){
+					cout << "Login error: " << line << endl;
+				}
+				else{
+					userid = atoi(line.c_str());
+				}
+				break;
+
+			case 2:
+				username = line;
+				break;
+			case 3:
+				email = line;
+				break;
+			case 4:
+				title = line;
+				break;
+			}
+			i++;
+		}
+		strstrm.clear();
+		strstrm.str(std::string());
+		readBuffer = string();
+	}
+	if (!loginok){
+		cout << "Please login with your SoA forum account or press enter to skip login" << endl;
+		cout << "Username: ";
+		getline(cin, username);
+		if (username.length() > 1){
+			cout << "Password: ";
+			SetStdinEcho(false);
+			getline(cin, password);
+			SetStdinEcho(true);
+			cout << endl;
+			cout << "Trying to log in..." << endl;
+
+
+
+			curl = curl_easy_init();
+			if (curl) {
+				curl_easy_setopt(curl, CURLOPT_URL, "http://www.seedofandromeda.com/updater/auth.php?action=login"); //TODO: Change to libcurl with ssl so https can be used
+				string post = string("username=") + username + "&password=" + password; //TODO: Escape username and password
+				curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post.c_str());
+				curl_easy_setopt(curl, CURLOPT_COOKIEFILE, dldir + "session.txt");
+				curl_easy_setopt(curl, CURLOPT_COOKIEJAR, dldir + "session.txt");
+				curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteToStringCallback);
+				curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
+				res = curl_easy_perform(curl);
+				curl_easy_cleanup(curl);
+				strstrm << readBuffer;
+				i = 0;
+				while (getline(strstrm, line)){
+					switch (i){
+					case 0:
+						if (line == "OK"){
+							loginok = true;
+						}
+						break;
+					case 1:
+						if (!loginok){
+							cout << "Login error: " << line << endl;
+						}
+						else{
+							userid = atoi(line.c_str());
+						}
+						break;
+
+					case 2:
+						username = line;
+						break;
+					case 3:
+						email = line;
+						break;
+					case 4:
+						title = line;
+						break;
+					}
+					i++;
+				}
+				strstrm.clear();
+				strstrm.str(std::string());
+			}
+
+		}
+	}
+	if (loginok){
+		cout << "Hello " << username << ", " << title << ", " << email << "! You have been logged in. Your user id seems to be " << userid << endl;
+	}
 	std::cout << "Checking for updates... Current version is " << version << endl;
 	std::stringstream urlstrm;
-	urlstrm << "http://seedofandromeda.com/update.php?version=" << version;
+	urlstrm << "http://www.seedofandromeda.com/updater/update.php?version=" << version;
 	string url = urlstrm.str();
 	cout << "Downloading from " << url << endl;
 	int curlout = curlLoadFileFromUrl(url, dldir + "latest.txt");
@@ -309,6 +427,13 @@ int curlLoadFileFromUrl(string url, string savefilename)
 	}
 }
 
+static size_t WriteToStringCallback(void *contents, size_t size, size_t nmemb, void *userp)
+{
+	((std::string*)userp)->append((char*)contents, size * nmemb);
+	return size * nmemb;
+}
+
+
 std::wstring ExpandEnvStrings(const std::wstring& source)
 {
 	DWORD len;
@@ -326,4 +451,30 @@ std::wstring ExpandEnvStrings(const std::wstring& source)
 	}
 	result.pop_back(); //Get rid of extra null
 	return result;
+}
+
+void SetStdinEcho(bool enable = true)
+{
+#ifdef WIN32
+	HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
+	DWORD mode;
+	GetConsoleMode(hStdin, &mode);
+
+	if (!enable)
+		mode &= ~ENABLE_ECHO_INPUT;
+	else
+		mode |= ENABLE_ECHO_INPUT;
+
+	SetConsoleMode(hStdin, mode);
+
+#else
+	struct termios tty;
+	tcgetattr(STDIN_FILENO, &tty);
+	if (!enable)
+		tty.c_lflag &= ~ECHO;
+	else
+		tty.c_lflag |= ECHO;
+
+	(void)tcsetattr(STDIN_FILENO, TCSANOW, &tty);
+#endif
 }

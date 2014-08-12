@@ -31,23 +31,27 @@ HRESULT EnableBlurBehind(HWND hwnd);
 HRESULT ExtendIntoClientAll(HWND hwnd);
 char * LoadStringFromResource(UINT id);
 static int xferinfo(void *p, curl_off_t dltotal, curl_off_t dlnow, curl_off_t ultotal, curl_off_t ulnow);
-void checkLoginInThread();
+DWORD WINAPI CheckLoginThread(LPVOID lpParam);
+DWORD WINAPI DoLoginThread(LPVOID lpParam);
+DWORD WINAPI DownloadThread(LPVOID lpParam);
 
 
-#define IDC_MAIN_BUTTON		101			// Button identifier
-#define IDC_MAIN_USERNAME	102	
-#define IDC_MAIN_PASSWORD	103	
-#define IDC_MAIN_STATUSBAR	104	
+#define IDC_MAIN_BUTTON			101	
+#define IDC_MAIN_USERNAME		102	
+#define IDC_MAIN_PASSWORD		103	
+#define IDC_MAIN_STATUSBAR		104	
+#define IDC_MAIN_LAUNCH_BUTTON	105	
 HWND hWnd;
 HWND hUsername;
 HWND hPassword;
 HWND hProgress;
 HWND hStatus;
-HINSTANCE hInstance;
+HANDLE dlHandle;
+HANDLE doLoginHandle;
+HANDLE checkLoginHandle;
 
 char usernameLabel[40];
 char passwordLabel[40];
-bool startdl;
 
 int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR lpCmdLine, int nShowCmd)
 {
@@ -59,7 +63,6 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR lpCmdLine, int nS
 	_CrtSetReportFile(_CRT_WARN, _CRTDBG_FILE_STDERR);
 	setDlDir("");
 	curl_global_init(CURL_GLOBAL_ALL);
-	hInstance = hInst;
 	WNDCLASSEX wClass;
 	ZeroMemory(&wClass, sizeof(WNDCLASSEX));
 	wClass.cbClsExtra = NULL;
@@ -120,15 +123,12 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR lpCmdLine, int nS
 	MSG msg;
 	ZeroMemory(&msg, sizeof(MSG));
 	//thread th(&curlLoadFileFromUrl, "http://files.seedofandromeda.com/game/0.1.6/SoA.zip", getDlDir() + "latest.zip", xferinfo);
-	thread th(&checkLoginInThread);
+	checkLoginHandle = CreateThread(NULL, 0,
+		CheckLoginThread, NULL, 0, NULL);
 	while (GetMessage(&msg, NULL, 0, 0))
 	{
 		TranslateMessage(&msg);
 		DispatchMessage(&msg);
-		if (startdl){
-			startdl = false;
-			thread thr(&curlLoadFileFromUrl, "http://files.seedofandromeda.com/game/0.1.6/SoA.zip", getDlDir() + "latest.zip", xferinfo);
-		}
 	}
 
 	return 0;
@@ -198,6 +198,27 @@ LRESULT CALLBACK WinProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 			WM_SETFONT,
 			(WPARAM)hfDefault,
 			MAKELPARAM(FALSE, 0));
+
+
+		HWND hWndLaunchButton = CreateWindowEx(NULL,
+			"BUTTON",
+			LoadStringFromResource(IDS_LAUNCHBUTTON),
+			WS_TABSTOP | WS_VISIBLE |
+			WS_CHILD | BS_DEFPUSHBUTTON,
+			105,
+			140,
+			100,
+			24,
+			hWnd,
+			(HMENU)IDC_MAIN_LAUNCH_BUTTON,
+			GetModuleHandle(NULL),
+			NULL);
+		SendMessage(hWndLaunchButton,
+			WM_SETFONT,
+			(WPARAM)hfDefault,
+			MAKELPARAM(FALSE, 0));
+
+
 		DoCreateStatusBar(hWnd, IDC_MAIN_STATUSBAR, GetModuleHandle(NULL), 2);
 
 	}
@@ -208,7 +229,20 @@ LRESULT CALLBACK WinProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		{
 		case IDC_MAIN_BUTTON:
 		{
-			startdl = true;
+
+			doLoginHandle = CreateThread(NULL, 0,
+				DoLoginThread, NULL, 0, NULL);
+
+			//MessageBox(NULL,
+			//	buffer,
+			//	"Information",
+			//	MB_ICONINFORMATION);
+		}
+			break;
+		case IDC_MAIN_LAUNCH_BUTTON:
+		{
+			dlHandle = CreateThread(NULL, 0,
+				DownloadThread, NULL, 0, NULL);
 			//char buffer[256];
 			//SendMessage(hUsername,
 			//	WM_GETTEXT,
@@ -312,7 +346,6 @@ HRESULT ExtendIntoClientAll(HWND hwnd)
 void DoCreateStatusBar(HWND hwndParent, int idStatus, HINSTANCE
 	hinst, int cParts)
 {
-	HWND hStatus;
 	RECT rcClient;
 	HLOCAL hloc;
 	PINT paParts;
@@ -370,7 +403,7 @@ char szBuffer[100];
 char * LoadStringFromResource(UINT id)
 {
 	// szBuffer is a globally pre-defined buffer of some maximum length
-	LoadString(hInstance, id, szBuffer, 100);
+	LoadString(GetModuleHandle(NULL), id, szBuffer, 100);
 	// yes, I know that strdup has problems. But you get the idea.
 	return _strdup(szBuffer);
 }
@@ -401,7 +434,6 @@ static int xferinfo(void *p,
 		//output is slow as shit, so lets cut out unneeded output.
 		if ((int)dlRatio != oldDlRatio){
 			oldDlRatio = (int)dlRatio;
-			fprintf(stdout, "\r%.0lf%% of %.1f MB", dlRatio, dltotal / 1024.0f / 1024.0f);
 			SendMessage(hProgress, PBM_SETPOS, dlRatio, 0);
 		}
 	}
@@ -410,7 +442,7 @@ static int xferinfo(void *p,
 	return 0;
 }
 
-void checkLoginInThread(){
+DWORD WINAPI CheckLoginThread(LPVOID lpParam){
 	SendMessage(hStatus,
 		WM_SETTEXT,
 		NULL,
@@ -423,13 +455,158 @@ void checkLoginInThread(){
 			(LPARAM)((string)"Login Error: " + login.errorMsg).c_str());
 	}
 	else{
-	/*	SendMessage(hStatus,
+		SendMessage(hStatus,
 			WM_SETTEXT,
 			NULL,
 			(LPARAM)((string)"Login successful! Username: " + login.username + ", Email: " + login.email + ", Title: " + login.custom_title + ", ID: " + to_string(login.userID)).c_str());
-		*/SendMessage(hUsername,
+		SendMessage(hUsername,
 			WM_SETTEXT,
 			NULL,
 			(LPARAM)login.username.c_str());
 	}
+	return 0;
+}
+
+DWORD WINAPI DoLoginThread(LPVOID lpParam){
+
+	SendMessage(hStatus,
+		WM_SETTEXT,
+		NULL,
+		(LPARAM)"Trying to login");
+	char username[100];
+	SendMessage(hUsername,
+		WM_GETTEXT,
+		sizeof(username) / sizeof(username[0]),
+		reinterpret_cast<LPARAM>(username));
+	char password[100];
+	SendMessage(hPassword,
+		WM_GETTEXT,
+		sizeof(password) / sizeof(password[0]),
+		reinterpret_cast<LPARAM>(password));
+	login_info login = doLogin(username, password);
+	if (!login.success){
+		SendMessage(hStatus,
+			WM_SETTEXT,
+			NULL,
+			(LPARAM)((string)"Login Error: " + login.errorMsg).c_str());
+	}
+	else{
+		SendMessage(hStatus,
+			WM_SETTEXT,
+			NULL,
+			(LPARAM)((string)"Login successful! Username: " + login.username + ", Email: " + login.email + ", Title: " + login.custom_title + ", ID: " + to_string(login.userID)).c_str());
+		SendMessage(hUsername,
+			WM_SETTEXT,
+			NULL,
+			(LPARAM)login.username.c_str());
+	}
+	return 0;
+}
+
+DWORD WINAPI DownloadThread(LPVOID lpParam)
+{
+	//version_info ver = *((version_info*)lpParam);
+
+	string dldir = getDlDir();
+
+	version_info verfile = readVersionFile();
+	if (verfile.updaterVersion > VERSION){
+		ifstream newupdater(dldir + "SoAUpdater.exe");
+		if (newupdater){
+			newupdater.close();
+			cout << "Newer version the updater (" << verfile.updaterVersion << " vs " << VERSION << ") found in " << dldir << endl;
+		}
+		else{
+			verfile.updaterVersion = 0;
+		}
+	}
+
+	SendMessage(hStatus,
+		WM_SETTEXT,
+		NULL,
+		(LPARAM)"Checking for game updates...");
+
+	version_info ver = checkLatestVersion(verfile.gameVersion);
+
+	bool update = false;
+	bool updatelauncher = false;
+	if (ver.gameVersion > verfile.gameVersion) {
+		SendMessage(hStatus,
+			WM_SETTEXT,
+			NULL,
+			(LPARAM)"Update found, downloading...");
+		update = true;
+	}
+
+	if (ver.updaterVersion > VERSION){
+		if (ver.updaterVersion == verfile.updaterVersion){
+			cout << "Launching updater from " << dldir << endl;
+			_chdir((dldir).c_str());
+			system((dldir + "SoAUpdater.exe -noappdata").c_str());
+			return 0;
+		}
+		else
+			if (ver.updaterVersion > verfile.updaterVersion){
+			updatelauncher = true;
+			}
+			else{
+				MessageBox(hWnd, " <<< New version of SoAUpdater is available to download. Please update as soon as possible. >>>", "Attention", 0);
+			}
+	}
+	int curlout;
+	if (updatelauncher){
+		SendMessage(hStatus,
+			WM_SETTEXT,
+			NULL,
+			(LPARAM)"Updating launcher...");
+		curlout = curlLoadFileFromUrl(ver.updaterUrl, dldir + "SoAUpdater.exe", xferinfo);
+		cout << "cURL returns " << curlout << endl;
+		if (!update){
+			//If no SoA update is available, update version.txt to prevent downloading the launcher on every launch
+			writeVersionFile(ver);
+		}
+		cout << "Launching updater from " << dldir << endl;
+		_chdir((dldir).c_str());
+		system((dldir + "SoAUpdater.exe -noappdata").c_str());
+		return 0;
+	}
+
+	if (update){
+		SendMessage(hStatus,
+			WM_SETTEXT,
+			NULL,
+			(LPARAM)"Downloading update...");
+		curlout = curlLoadFileFromUrl(ver.gameUrl, dldir + "latest.zip", xferinfo);
+		cout << "cURL returns " << curlout << endl;
+		SendMessage(hStatus,
+			WM_SETTEXT,
+			NULL,
+			(LPARAM)"Unpacking the update...");
+		//open zip file
+		ZipFile zipFile(dldir + "latest.zip");
+		if (zipFile.fail()){
+			printf("%s: not found\n", dldir + "latest.zip");
+			system("pause");
+			return -1;
+		}
+
+		//extract zip file
+		if (zipFile.extractZip(dldir + "\\" + to_string(ver.gameVersion) + "\\") != 0){
+			printf("failed to extract zip file.");
+			system("pause");
+			return -2;
+		}
+		else{
+			//TODO: Close the zip file so it can be deleted!
+			//zipFile.~ZipFile();
+			writeVersionFile(ver);
+		}
+	}
+	SendMessage(hStatus,
+		WM_SETTEXT,
+		NULL,
+		(LPARAM)"Starting up SoA...");
+	runSoA(ver.gameVersion);
+
+	return 0;
 }

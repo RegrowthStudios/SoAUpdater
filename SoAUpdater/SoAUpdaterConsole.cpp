@@ -29,17 +29,16 @@ int main(int argc, char* argv[])
 
 	version_info verfile = readVersionFile();
 
-	int i = 0;
 	if (verfile.updaterVersion > VERSION){
-					ifstream newupdater(dldir + "SoAUpdater.exe");
-					if (newupdater){
-						newupdater.close();
-						cout << "Newer version the updater (" << verfile.updaterVersion << " vs " << VERSION << ") found in " << dldir << endl;
-					}
-					else{
-						verfile.updaterVersion = 0;
-					}
-				}
+		ifstream newupdater(dldir + "SoAUpdater.exe");
+		if (newupdater){
+			newupdater.close();
+			cout << "Newer version the updater (" << verfile.updaterVersion << " vs " << VERSION << ") found in " << dldir << endl;
+		}
+		else{
+			verfile.updaterVersion = 0;
+		}
+	}
 
 	std::cout << "Checking for game updates... Current version is " << verfile.gameVersion << endl;
 
@@ -120,7 +119,7 @@ int main(int argc, char* argv[])
 		}
 
 		//extract zip file
-		if (zipFile.extractZip(dldir) != 0){
+		if (zipFile.extractZip(dldir + "\\" + to_string(ver.gameVersion) + "\\") != 0){
 			printf("failed to extract zip file.");
 			system("pause");
 			return -2;
@@ -132,8 +131,7 @@ int main(int argc, char* argv[])
 		}
 	}
 	cout << "Starting up SoA..." << endl;
-	_chdir((dldir + "Release\\").c_str());
-	system("SoA.exe");
+	runSoA(ver.gameVersion);
 	return 0;
 }
 

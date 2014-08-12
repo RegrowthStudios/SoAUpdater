@@ -127,6 +127,12 @@ void writeVersionFile(version_info ver){
 	verfile.close();
 }
 
+void runSoA(int version){
+	_chdir((dldir + "\\" + to_string(version) + "\\Release\\").c_str());
+	system("SOA.exe");
+}
+
+
 
 
 size_t write_data(void *ptr, size_t size, size_t nmemb, FILE *stream)

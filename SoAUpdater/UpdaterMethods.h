@@ -5,7 +5,7 @@
 
 
 //Version of this release
-const int VERSION = 5;
+const int VERSION = 6;
 
 
 struct myprogress {
@@ -41,6 +41,7 @@ version_info parseVersionInfo(std::string response);
 version_info parseVersionInfo(std::istream &strm);
 version_info readVersionFile();
 void writeVersionFile(version_info ver);
+void runSoA(int version);
 
 
 int curlLoadFileFromUrl(std::string url, std::string savefilename, int(*xferinfo)(void(*), curl_off_t, curl_off_t, curl_off_t, curl_off_t));

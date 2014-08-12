@@ -63,7 +63,7 @@
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
     <Link>
-      <SubSystem>Console</SubSystem>
+      <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <AdditionalDependencies>dwmapi.lib;zlibstat.lib;Ws2_32.lib;libcurl.lib;%(AdditionalDependencies)</AdditionalDependencies>

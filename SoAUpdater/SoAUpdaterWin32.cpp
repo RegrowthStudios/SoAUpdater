@@ -18,24 +18,31 @@
 #include <tchar.h>
 
 #include "resource.h"
+#include <thread>
 
 
 using namespace std;
 
 // Forward declarations of functions included in this code module:
 LRESULT CALLBACK WinProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
+void DoCreateStatusBar(HWND hwndParent, int idStatus, HINSTANCE
+	hinst, int cParts);
 HRESULT EnableBlurBehind(HWND hwnd);
 HRESULT ExtendIntoClientAll(HWND hwnd);
 char * LoadStringFromResource(UINT id);
 static int xferinfo(void *p, curl_off_t dltotal, curl_off_t dlnow, curl_off_t ultotal, curl_off_t ulnow);
+void checkLoginInThread();
 
 
-#define IDC_MAIN_BUTTON	101			// Button identifier
+#define IDC_MAIN_BUTTON		101			// Button identifier
 #define IDC_MAIN_USERNAME	102	
 #define IDC_MAIN_PASSWORD	103	
+#define IDC_MAIN_STATUSBAR	104	
+HWND hWnd;
 HWND hUsername;
 HWND hPassword;
 HWND hProgress;
+HWND hStatus;
 HINSTANCE hInstance;
 
 char usernameLabel[40];
@@ -76,7 +83,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR lpCmdLine, int nS
 
 
 
-	HWND hWnd = CreateWindowEx(NULL,
+	hWnd = CreateWindowEx(NULL,
 		"Window Class",
 		LoadStringFromResource(IDS_WINDOWTITLE),
 		WS_OVERLAPPEDWINDOW,
@@ -101,12 +108,13 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR lpCmdLine, int nS
 	//Cool aero effect, still needs fixing though:
 	//EnableBlurBehind(hWnd);
 	//ExtendIntoClientAll(hWnd);
-	
+
 	ShowWindow(hWnd, nShowCmd);
 
 	MSG msg;
 	ZeroMemory(&msg, sizeof(MSG));
-
+	//thread th(&curlLoadFileFromUrl, "http://files.seedofandromeda.com/game/0.1.6/SoA.zip", getDlDir() + "latest.zip", xferinfo);
+	thread th(&checkLoginInThread);
 	while (GetMessage(&msg, NULL, 0, 0))
 	{
 		TranslateMessage(&msg);
@@ -180,16 +188,8 @@ LRESULT CALLBACK WinProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 			WM_SETFONT,
 			(WPARAM)hfDefault,
 			MAKELPARAM(FALSE, 0));
-		hProgress = CreateWindowEx(0, PROGRESS_CLASS, (LPTSTR)NULL,
-			WS_CHILD | WS_VISIBLE,
-			5,
-			150,
-			200,
-			30,
-			hWnd, (HMENU)0, GetModuleHandle(NULL), NULL);
-		SendMessage(hProgress, PBM_SETRANGE, 0, (LPARAM)100);
+		DoCreateStatusBar(hWnd, IDC_MAIN_STATUSBAR, GetModuleHandle(NULL), 2);
 
-		SendMessage(hProgress, PBM_SETSTEP, (WPARAM)1, 0);
 	}
 		break;
 
@@ -198,16 +198,16 @@ LRESULT CALLBACK WinProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		{
 		case IDC_MAIN_BUTTON:
 		{
-			curlLoadFileFromUrl("http://files.seedofandromeda.com/game/0.1.6/SoA.zip", getDlDir() + "latest.zip", xferinfo);
-			char buffer[256];
-			SendMessage(hUsername,
-				WM_GETTEXT,
-				sizeof(buffer) / sizeof(buffer[0]),
-				reinterpret_cast<LPARAM>(buffer));
-			MessageBox(NULL,
-				buffer,
-				"Information",
-				MB_ICONINFORMATION);
+
+			//char buffer[256];
+			//SendMessage(hUsername,
+			//	WM_GETTEXT,
+			//	sizeof(buffer) / sizeof(buffer[0]),
+			//	reinterpret_cast<LPARAM>(buffer));
+			//MessageBox(NULL,
+			//	buffer,
+			//	"Information",
+			//	MB_ICONINFORMATION);
 		}
 			break;
 		}
@@ -288,6 +288,74 @@ HRESULT ExtendIntoClientAll(HWND hwnd)
 	return hr;
 }
 
+
+// Description: 
+//   Creates a status bar and divides it into the specified number of parts.
+// Parameters:
+//   hwndParent - parent window for the status bar.
+//   idStatus - child window identifier of the status bar.
+//   hinst - handle to the application instance.
+//   cParts - number of parts into which to divide the status bar.
+// Returns:
+//   The handle to the status bar.
+//
+void DoCreateStatusBar(HWND hwndParent, int idStatus, HINSTANCE
+	hinst, int cParts)
+{
+	HWND hStatus;
+	RECT rcClient;
+	HLOCAL hloc;
+	PINT paParts;
+	int i, nWidth;
+
+	// Ensure that the common control DLL is loaded.
+	//InitCommonControls();
+
+	// Create the status bar.
+	hStatus = CreateWindowEx(
+		0,                       // no extended styles
+		STATUSCLASSNAME,         // name of status bar class
+		(PCTSTR)"Ready.",           // no text when first created
+		SBARS_SIZEGRIP |         // includes a sizing grip
+		WS_CHILD | WS_VISIBLE,   // creates a visible child window
+		0, 0, 0, 0,              // ignores size and position
+		hwndParent,              // handle to parent window
+		(HMENU)idStatus,       // child window identifier
+		hinst,                   // handle to application instance
+		NULL);                   // no window creation data
+
+	// Get the coordinates of the parent window's client area.
+	GetClientRect(hwndParent, &rcClient);
+
+	// Allocate an array for holding the right edge coordinates.
+	hloc = LocalAlloc(LHND, sizeof(int) * cParts);
+	paParts = (PINT)LocalLock(hloc);
+
+	// Calculate the right edge coordinate for each part, and
+	// copy the coordinates to the array.
+	nWidth = rcClient.right / cParts;
+	int rightEdge = nWidth;
+	for (i = 0; i < cParts; i++) {
+		paParts[i] = rightEdge;
+		OutputDebugString(to_string(rightEdge).c_str());
+		rightEdge += nWidth;
+	}
+
+	// Tell the status bar to create the window parts.
+	SendMessage(hStatus, SB_SETPARTS, (WPARAM)cParts, (LPARAM)
+		paParts);
+	hProgress = CreateWindowEx(0, PROGRESS_CLASS, (LPTSTR)NULL,
+		WS_CHILD | WS_VISIBLE,
+		paParts[0],
+		0,
+		200,
+		rcClient.bottom - rcClient.top,
+		hStatus, (HMENU)0, GetModuleHandle(NULL), NULL);
+	// Free the array, and return.
+	LocalUnlock(hloc);
+	LocalFree(hloc);
+}
+
 char szBuffer[100];
 char * LoadStringFromResource(UINT id)
 {
@@ -324,10 +392,34 @@ static int xferinfo(void *p,
 		if ((int)dlRatio != oldDlRatio){
 			oldDlRatio = (int)dlRatio;
 			fprintf(stdout, "\r%.0lf%% of %.1f MB", dlRatio, dltotal / 1024.0f / 1024.0f);
-			SendMessage(hProgress, PBM_SETPOS, (int)dlRatio, 0);
+			SendMessage(hProgress, PBM_SETPOS, dlRatio, 0);
 		}
 	}
 	//if (dlnow > STOP_DOWNLOAD_AFTER_THIS_MANY_BYTES)
 	//	return 1;
 	return 0;
+}
+
+void checkLoginInThread(){
+	SendMessage(hStatus,
+		WM_SETTEXT,
+		NULL,
+		(LPARAM)"Checking for login");
+	login_info login = checkLogin();
+	if (!login.success){
+		SendMessage(hStatus,
+			WM_SETTEXT,
+			NULL,
+			(LPARAM)((string)"Login Error: " + login.errorMsg).c_str());
+	}
+	else{
+	/*	SendMessage(hStatus,
+			WM_SETTEXT,
+			NULL,
+			(LPARAM)((string)"Login successful! Username: " + login.username + ", Email: " + login.email + ", Title: " + login.custom_title + ", ID: " + to_string(login.userID)).c_str());
+		*/SendMessage(hUsername,
+			WM_SETTEXT,
+			NULL,
+			(LPARAM)login.username.c_str());
+	}
 }

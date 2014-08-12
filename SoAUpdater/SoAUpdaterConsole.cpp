@@ -56,43 +56,9 @@ int main(int argc, char* argv[])
 		}
 		ifile.close();
 	}
-	stringstream strstrm;
-	int userid;
-	string username, password, email, title;
-	bool loginok = false;
-	strstrm << curlLoadStringFromUrl("http://www.seedofandromeda.com/updater/auth.php?action=checklogin"); //TODO: Change to libcurl with ssl so https can be used
-	i = 0;
-	while (getline(strstrm, line)){
-		switch (i){
-		case 0:
-			if (line == "OK"){
-				loginok = true;
-			}
-			break;
-		case 1:
-			if (!loginok){
-				cout << "Login error: " << line << endl;
-			}
-			else{
-				userid = atoi(line.c_str());
-			}
-			break;
-
-		case 2:
-			username = line;
-			break;
-		case 3:
-			email = line;
-			break;
-		case 4:
-			title = line;
-			break;
-		}
-		i++;
-	}
-	strstrm.clear();
-	strstrm.str(std::string());
-	if (!loginok){
+	login_info login = checkLogin();
+	string username, password;
+	if (!login.success){
 		cout << "Please login with your SoA forum account or press enter to skip login" << endl;
 		cout << "Username: ";
 		getline(cin, username);
@@ -103,44 +69,12 @@ int main(int argc, char* argv[])
 			SetStdinEcho(true);
 			cout << endl;
 			cout << "Trying to log in..." << endl;
-			string post = string("username=") + username + "&password=" + password; //TODO: Escape username and password
-			strstrm << curlLoadStringFromUrl("http://www.seedofandromeda.com/updater/auth.php?action=login", post); //TODO: Change to libcurl with ssl so https can be used
-			i = 0;
-			while (getline(strstrm, line)){
-				switch (i){
-				case 0:
-					if (line == "OK"){
-						loginok = true;
-					}
-					break;
-				case 1:
-					if (!loginok){
-						cout << "Login error: " << line << endl;
-					}
-					else{
-						userid = atoi(line.c_str());
-					}
-					break;
-
-				case 2:
-					username = line;
-					break;
-				case 3:
-					email = line;
-					break;
-				case 4:
-					title = line;
-					break;
-				}
-				i++;
-			}
-			strstrm.clear();
-			strstrm.str(std::string());
+			login = doLogin(username, password);
 		}
 
 	}
-	if (loginok){
-		cout << "Hello " << username << ", " << title << ", " << email << "! You have been logged in. Your user id seems to be " << userid << endl;
+	if (login.success){
+		cout << "Hello " << login.username << ", " << login.custom_title << ", " << login.email << "! You have been logged in. Your user id seems to be " << login.userID << endl;
 	}
 	std::cout << "Checking for updates... Current version is " << version << endl;
 	std::stringstream urlstrm;

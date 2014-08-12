@@ -33,6 +33,54 @@ string getDlDir(){
 	}
 }
 
+
+login_info checkLogin(){
+	return parseUserData(curlLoadStringFromUrl("http://www.seedofandromeda.com/updater/auth.php?action=checklogin")); //TODO: Change to libcurl with ssl so https can be used
+}
+login_info doLogin(string username, string password){
+	string post = string("username=") + username + "&password=" + password;
+	return parseUserData(curlLoadStringFromUrl("http://www.seedofandromeda.com/updater/auth.php?action=login", post)); //TODO: Change to libcurl with ssl so https can be used
+}
+
+login_info parseUserData(string response){
+	login_info ret;
+	int i = 0;
+	stringstream strstrm(response);
+	string line;
+	while (getline(strstrm, line)){
+		switch (i){
+		case 0:
+			if (line == "OK"){
+				ret.success = true;
+			}
+			break;
+		case 1:
+			if (!ret.success){
+				ret.errorMsg = line;
+				return ret;
+			}
+			else{
+				ret.userID = atoi(line.c_str());
+			}
+			break;
+
+		case 2:
+			ret.username = line;
+			break;
+		case 3:
+			ret.email = line;
+			break;
+		case 4:
+			ret.custom_title = line;
+			break;
+		}
+		i++;
+	}
+	return ret;
+}
+
+
+
 size_t write_data(void *ptr, size_t size, size_t nmemb, FILE *stream)
 {
 	size_t written;
@@ -45,8 +93,7 @@ int curlLoadFileFromUrl(string url, string savefilename, int(*xferinfo)(void(*),
 	CURL *curl_handle;
 	struct myprogress prog;
 
-	FILE *bodyfile;
-
+	
 	/* init the curl session */
 	curl_handle = curl_easy_init();
 	if (curl_handle){
@@ -69,6 +116,7 @@ int curlLoadFileFromUrl(string url, string savefilename, int(*xferinfo)(void(*),
 		curl_easy_setopt(curl_handle, CURLOPT_FOLLOWLOCATION, 1L);
 
 		/* open the file */
+		FILE *bodyfile;
 		fopen_s(&bodyfile, savefilename.c_str(), "wb");
 		if (bodyfile == NULL) {
 			curl_easy_cleanup(curl_handle);

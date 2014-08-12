@@ -1,7 +1,7 @@
 // SoAUpdater.cpp : Defines the entry point for the console application.
 //
-#include "stdafx.h";
-#include "UpdaterMethods.h";
+#include "stdafx.h"
+#include "UpdaterMethods.h"
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -27,39 +27,69 @@ int main(int argc, char* argv[])
 
 	string dldir = getDlDir();
 
-	ifstream ifile(dldir + "version.txt");
-	std::string line;
-	int version = 0;
-	int newupdaterversion = 0;
+	version_info verfile = readVersionFile();
+
 	int i = 0;
-	if (ifile) {
-		while (std::getline(ifile, line)) {
-			std::cout << "Current version line " << i << ": " << line << endl;
-			if (i == 0){
-				version = atoi(line.c_str());
-			}
-			else if (i == 2){
-				newupdaterversion = atoi(line.c_str());
-				if (newupdaterversion > VERSION){
+	if (verfile.updaterVersion > VERSION){
 					ifstream newupdater(dldir + "SoAUpdater.exe");
 					if (newupdater){
 						newupdater.close();
-						cout << "Newer version the updater (" << newupdaterversion << " vs " << VERSION << ") found in " << dldir << endl;
+						cout << "Newer version the updater (" << verfile.updaterVersion << " vs " << VERSION << ") found in " << dldir << endl;
 					}
 					else{
-						newupdaterversion = 0;
+						verfile.updaterVersion = 0;
 					}
 				}
-				break;
-			}
-			i++;
-		}
-		ifile.close();
+
+	std::cout << "Checking for game updates... Current version is " << verfile.gameVersion << endl;
+
+	version_info ver = checkLatestVersion(verfile.gameVersion);
+
+	bool update = false;
+	bool updatelauncher = false;
+	if (ver.gameVersion > verfile.gameVersion) {
+		cout << "Update found, downloading..." << endl;
+		update = true;
 	}
+	else{
+		cout << "No update found!" << endl;
+	}
+
+	if (ver.updaterVersion > VERSION){
+		if (ver.updaterVersion == verfile.updaterVersion){
+			cout << "Launching updater from " << dldir << endl;
+			_chdir((dldir).c_str());
+			system((dldir + "SoAUpdater.exe -noappdata").c_str());
+			return 0;
+		}
+		else
+			if (ver.updaterVersion > verfile.updaterVersion){
+			updatelauncher = true;
+			}
+			else{
+				cout << endl << " <<< New version of SoAUpdater is available to download. Please update as soon as possible. >>>" << endl << endl;
+				system("pause");
+			}
+	}
+	int curlout;
+	if (updatelauncher){
+		cout << "Updating launcher at " << dldir << endl;
+		curlout = curlLoadFileFromUrl(ver.updaterUrl, dldir + "SoAUpdater.exe", xferinfo);
+		cout << "cURL returns " << curlout << endl;
+		if (!update){
+			//If no SoA update is available, update version.txt to prevent downloading the launcher on every launch
+			writeVersionFile(ver);
+		}
+		cout << "Launching updater from " << dldir << endl;
+		_chdir((dldir).c_str());
+		system((dldir + "SoAUpdater.exe -noappdata").c_str());
+		return 0;
+	}
+
 	login_info login = checkLogin();
 	string username, password;
 	if (!login.success){
-		cout << "Please login with your SoA forum account or press enter to skip login" << endl;
+		cout << endl << endl << "Please login with your SoA forum account or press enter to skip login" << endl;
 		cout << "Username: ";
 		getline(cin, username);
 		if (username.length() > 1){
@@ -76,90 +106,9 @@ int main(int argc, char* argv[])
 	if (login.success){
 		cout << "Hello " << login.username << ", " << login.custom_title << ", " << login.email << "! You have been logged in. Your user id seems to be " << login.userID << endl;
 	}
-	std::cout << "Checking for updates... Current version is " << version << endl;
-	std::stringstream urlstrm;
-	urlstrm << "http://www.seedofandromeda.com/updater/update.php?version=" << version;
-	string url = urlstrm.str();
-	cout << "Downloading from " << url << endl;
-	int curlout = curlLoadFileFromUrl(url, dldir + "latest.txt", xferinfo);
 
-	cout << "cURL returns " << curlout << endl;
-
-	bool update = false;
-	string updateurl = "";
-
-	std::ifstream input(dldir + "latest.txt");
-	if (!input){
-		cout << "latest.txt did not get downloaded!" << endl;
-		if (version < 1){
-			cout << "Launcher cannot continue, no downloaded version available and update check failed." << endl;
-			system("pause");
-			return -1;
-		}
-	}
-	else{
-
-		i = 0;
-		bool updatelauncher = false;
-		while (std::getline(input, line)) {
-			std::cout << "Latest version line " << i << ": " << line << std::endl;
-			if (i == 0){
-				if (atoi(line.c_str()) > version) {
-					cout << "Update found, downloading..." << endl;
-					update = true;
-				}
-				else{
-					cout << "No update found!" << endl;
-				}
-			}
-			else if (i == 1 && update){
-				updateurl = line;
-			}
-			else if (i == 2){
-				int latestupdaterver = atoi(line.c_str());
-				if (latestupdaterver > VERSION){
-					if (latestupdaterver == newupdaterversion){
-						cout << "Launching updater from " << dldir << endl;
-						_chdir((dldir).c_str());
-						system((dldir + "SoAUpdater.exe -noappdata").c_str());
-						return 0;
-					}
-					else
-						if (latestupdaterver > newupdaterversion){
-						updatelauncher = true;
-						}
-						else{
-							cout << endl << " <<< New version of SoAUpdater is available to download. Please update as soon as possible. >>>" << endl << endl;
-							system("pause");
-						}
-				}
-			}
-			else if (i == 3 && updatelauncher){
-				cout << "Updating launcher at " << dldir << endl;
-				input.close();
-				curlout = curlLoadFileFromUrl(line, dldir + "SoAUpdater.exe", xferinfo);
-				cout << "cURL returns " << curlout << endl;
-				if (!update){
-					//If no SoA update is available, rename the latest.txt to version.txt to prevent downloading the launcher on every launch
-					if (remove((dldir + "version.txt").c_str()) != 0){
-						cout << "Failed to remove version.txt!" << endl;
-					}
-					if (rename((dldir + "latest.txt").c_str(), (dldir + "version.txt").c_str()) != 0){
-						cout << "Failed to rename latest.txt to version.txt!" << endl;
-					}
-				}
-				cout << "Launching updater from " << dldir << endl;
-				_chdir((dldir).c_str());
-				system((dldir + "SoAUpdater.exe -noappdata").c_str());
-				return 0;
-			}
-			i++;
-		}
-		input.close();
-
-	}
 	if (update){
-		curlout = curlLoadFileFromUrl(updateurl, dldir + "latest.zip", xferinfo);
+		curlout = curlLoadFileFromUrl(ver.gameUrl, dldir + "latest.zip", xferinfo);
 		cout << "cURL returns " << curlout << endl;
 		cout << "Unpacking the update..." << endl;
 		//open zip file
@@ -179,15 +128,7 @@ int main(int argc, char* argv[])
 		else{
 			//TODO: Close the zip file so it can be deleted!
 			//zipFile.~ZipFile();
-			if (remove((dldir + "latest.zip").c_str()) != 0){
-				cout << "Failed to remove latest.zip!" << endl;
-			}
-			if (remove((dldir + "version.txt").c_str()) != 0){
-				cout << "Failed to remove version.txt!" << endl;
-			}
-			if (rename((dldir + "latest.txt").c_str(), (dldir + "version.txt").c_str()) != 0){
-				cout << "Failed to rename latest.txt to version.txt!" << endl;
-			}
+			writeVersionFile(ver);
 		}
 	}
 	cout << "Starting up SoA..." << endl;

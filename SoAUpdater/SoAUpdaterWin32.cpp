@@ -47,10 +47,16 @@ HINSTANCE hInstance;
 
 char usernameLabel[40];
 char passwordLabel[40];
-
+bool startdl;
 
 int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR lpCmdLine, int nShowCmd)
 {
+	_CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE | _CRTDBG_MODE_DEBUG | _CRTDBG_MODE_WNDW);
+	_CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);
+	_CrtSetReportMode(_CRT_ERROR, _CRTDBG_MODE_FILE | _CRTDBG_MODE_DEBUG | _CRTDBG_MODE_WNDW);
+	_CrtSetReportFile(_CRT_ERROR, _CRTDBG_FILE_STDERR);
+	_CrtSetReportMode(_CRT_WARN, _CRTDBG_MODE_FILE | _CRTDBG_MODE_DEBUG | _CRTDBG_MODE_WNDW);
+	_CrtSetReportFile(_CRT_WARN, _CRTDBG_FILE_STDERR);
 	setDlDir("");
 	curl_global_init(CURL_GLOBAL_ALL);
 	hInstance = hInst;
@@ -119,6 +125,10 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR lpCmdLine, int nS
 	{
 		TranslateMessage(&msg);
 		DispatchMessage(&msg);
+		if (startdl){
+			startdl = false;
+			thread thr(&curlLoadFileFromUrl, "http://files.seedofandromeda.com/game/0.1.6/SoA.zip", getDlDir() + "latest.zip", xferinfo);
+		}
 	}
 
 	return 0;
@@ -198,7 +208,7 @@ LRESULT CALLBACK WinProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		{
 		case IDC_MAIN_BUTTON:
 		{
-
+			startdl = true;
 			//char buffer[256];
 			//SendMessage(hUsername,
 			//	WM_GETTEXT,

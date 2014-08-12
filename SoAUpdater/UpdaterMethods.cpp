@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "UpdaterMethods.h";
+#include "UpdaterMethods.h"
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -28,9 +28,7 @@ string getDlDir(){
 		//This should not happen
 		setDlDir();
 	}
-	else{
-		return dldir;
-	}
+	return dldir;
 }
 
 
@@ -50,9 +48,7 @@ login_info parseUserData(string response){
 	while (getline(strstrm, line)){
 		switch (i){
 		case 0:
-			if (line == "OK"){
-				ret.success = true;
-			}
+			ret.success = line == "OK";
 			break;
 		case 1:
 			if (!ret.success){
@@ -79,6 +75,58 @@ login_info parseUserData(string response){
 	return ret;
 }
 
+version_info checkLatestVersion(int gameVersion){
+	return parseVersionInfo(curlLoadStringFromUrl("http://www.seedofandromeda.com/updater/update.php?updaterversion=" + to_string(VERSION) + "&gameversion=" + to_string(gameVersion)));
+}
+
+
+
+version_info parseVersionInfo(string response){
+
+	stringstream strstrm(response);
+	return parseVersionInfo(strstrm);
+}
+version_info parseVersionInfo(std::istream &strm){
+	version_info ret;
+
+	int i = 0;
+	string line;
+	while (getline(strm, line)){
+		switch (i){
+		case 0:
+			ret.gameVersion = atoi(line.c_str());
+			break;
+		case 1:
+			ret.gameUrl = line;
+			break;
+		case 2:
+			ret.updaterVersion = atoi(line.c_str());
+			break;
+		case 3:
+			ret.updaterUrl = line;
+			break;
+		}
+		i++;
+	}
+	return ret;
+}
+
+version_info readVersionFile(){
+	version_info ret;
+	ifstream verfile;
+	verfile.open(dldir + "version.txt");
+	ret = parseVersionInfo(verfile);
+	verfile.close();
+	return ret;
+}
+
+void writeVersionFile(version_info ver){
+	ofstream verfile;
+	verfile.open(dldir + "version.txt");
+	verfile << ver.gameVersion << endl << ver.gameUrl << endl << ver.updaterVersion << endl << ver.updaterUrl;
+	verfile.close();
+}
+
 
 
 size_t write_data(void *ptr, size_t size, size_t nmemb, FILE *stream)
@@ -93,7 +141,7 @@ int curlLoadFileFromUrl(string url, string savefilename, int(*xferinfo)(void(*),
 	CURL *curl_handle;
 	struct myprogress prog;
 
-	
+
 	/* init the curl session */
 	curl_handle = curl_easy_init();
 	if (curl_handle){
@@ -115,9 +163,13 @@ int curlLoadFileFromUrl(string url, string savefilename, int(*xferinfo)(void(*),
 		/* we tell libcurl to follow redirection */
 		curl_easy_setopt(curl_handle, CURLOPT_FOLLOWLOCATION, 1L);
 
+		curl_easy_setopt(curl_handle, CURLOPT_COOKIEFILE, dldir + "session.txt");
+		curl_easy_setopt(curl_handle, CURLOPT_COOKIEJAR, dldir + "session.txt");
 		/* open the file */
 		FILE *bodyfile;
 		fopen_s(&bodyfile, savefilename.c_str(), "wb");
+
+
 		if (bodyfile == NULL) {
 			curl_easy_cleanup(curl_handle);
 			return -1;
@@ -140,6 +192,7 @@ int curlLoadFileFromUrl(string url, string savefilename, int(*xferinfo)(void(*),
 			fprintf(stderr, "%s\n", curl_easy_strerror(res));
 			return -1;
 		}
+		return 0;
 	}
 	else{
 		return -1;
@@ -162,7 +215,7 @@ string curlLoadStringFromUrl(string url, string postfields)
 		curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteToStringCallback);
 		curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
 
-		curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
+		curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 1L);
 		curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
 		curl_easy_perform(curl);
 		curl_easy_cleanup(curl);

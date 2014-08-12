@@ -1,6 +1,7 @@
 // SoAUpdater.cpp : Defines the entry point for the console application.
 //
-#include "stdafx.h"
+#include "stdafx.h";
+#include "UpdaterMethods.h";
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -11,51 +12,20 @@
 
 using namespace std;
 
-//Version of this release
-const int VERSION = 4;
-
 //prototypes
 
-size_t write_data(void *ptr, size_t size, size_t nmemb, FILE *stream);
 static int xferinfo(void *p, curl_off_t dltotal, curl_off_t dlnow, curl_off_t ultotal, curl_off_t ulnow);
-int curlLoadFileFromUrl(string url, string savefilename);
-static size_t WriteToStringCallback(void *contents, size_t size, size_t nmemb, void *userp);
-std::wstring ExpandEnvStrings(const std::wstring& source);
+
 void SetStdinEcho(bool enable);
 
 
 //I like to have main at the top. call me crazy
 int main(int argc, char* argv[])
 {
-	string dldir = ".\\";
+	setDlDir();
+	curl_global_init(CURL_GLOBAL_ALL);
 
-	bool useappdata = false;
-	bool noappdata = false;
-	//cout << argc << " arguments" << endl;
-	for (int i = 0; i < argc; ++i) {
-		cout << argv[i] << endl;
-		if (((string)"-noappdata").compare(argv[i]) == 0){
-			cout << "AppData will not be used!" << endl;
-			noappdata = true;
-		}
-	}
-
-	if (!noappdata){
-		ifstream testfile("version.txt");
-		if (!testfile){
-			dldir = "%appdata%\\SoA\\";
-
-			wstring temp = ExpandEnvStrings(L"%appdata%\\SoA\\");
-			dldir.resize(temp.size()); //make enough room in copy for the string 
-			std::copy(temp.begin(), temp.end(), dldir.begin()); //copy it 
-			cout << "version.txt was not found here, trying " << dldir << endl;
-			useappdata = true;
-			_mkdir(dldir.c_str());
-		}
-		else{
-			testfile.close();
-		}
-	}
+	string dldir = getDlDir();
 
 	ifstream ifile(dldir + "version.txt");
 	std::string line;
@@ -68,7 +38,7 @@ int main(int argc, char* argv[])
 			if (i == 0){
 				version = atoi(line.c_str());
 			}
-			else if (i == 2 && useappdata){
+			else if (i == 2){
 				newupdaterversion = atoi(line.c_str());
 				if (newupdaterversion > VERSION){
 					ifstream newupdater(dldir + "SoAUpdater.exe");
@@ -86,58 +56,42 @@ int main(int argc, char* argv[])
 		}
 		ifile.close();
 	}
-	CURL *curl;
-	CURLcode res;
-	std::string readBuffer;
 	stringstream strstrm;
 	int userid;
 	string username, password, email, title;
 	bool loginok = false;
-
-	curl = curl_easy_init();
-	if (curl) {
-		curl_easy_setopt(curl, CURLOPT_URL, "http://www.seedofandromeda.com/updater/auth.php?action=checklogin"); //TODO: Change to libcurl with ssl so https can be used
-		curl_easy_setopt(curl, CURLOPT_COOKIEFILE, dldir + "session.txt");
-		curl_easy_setopt(curl, CURLOPT_COOKIEJAR, dldir + "session.txt");
-		curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteToStringCallback);
-		curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
-		res = curl_easy_perform(curl);
-		curl_easy_cleanup(curl);
-
-		strstrm << readBuffer;
-		i = 0;
-		while (getline(strstrm, line)){
-			switch (i){
-			case 0:
-				if (line == "OK"){
-					loginok = true;
-				}
-				break;
-			case 1:
-				if (!loginok){
-					cout << "Login error: " << line << endl;
-				}
-				else{
-					userid = atoi(line.c_str());
-				}
-				break;
-
-			case 2:
-				username = line;
-				break;
-			case 3:
-				email = line;
-				break;
-			case 4:
-				title = line;
-				break;
+	strstrm << curlLoadStringFromUrl("http://www.seedofandromeda.com/updater/auth.php?action=checklogin"); //TODO: Change to libcurl with ssl so https can be used
+	i = 0;
+	while (getline(strstrm, line)){
+		switch (i){
+		case 0:
+			if (line == "OK"){
+				loginok = true;
 			}
-			i++;
+			break;
+		case 1:
+			if (!loginok){
+				cout << "Login error: " << line << endl;
+			}
+			else{
+				userid = atoi(line.c_str());
+			}
+			break;
+
+		case 2:
+			username = line;
+			break;
+		case 3:
+			email = line;
+			break;
+		case 4:
+			title = line;
+			break;
 		}
-		strstrm.clear();
-		strstrm.str(std::string());
-		readBuffer = string();
+		i++;
 	}
+	strstrm.clear();
+	strstrm.str(std::string());
 	if (!loginok){
 		cout << "Please login with your SoA forum account or press enter to skip login" << endl;
 		cout << "Username: ";
@@ -149,55 +103,41 @@ int main(int argc, char* argv[])
 			SetStdinEcho(true);
 			cout << endl;
 			cout << "Trying to log in..." << endl;
-
-
-
-			curl = curl_easy_init();
-			if (curl) {
-				curl_easy_setopt(curl, CURLOPT_URL, "http://www.seedofandromeda.com/updater/auth.php?action=login"); //TODO: Change to libcurl with ssl so https can be used
-				string post = string("username=") + username + "&password=" + password; //TODO: Escape username and password
-				curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post.c_str());
-				curl_easy_setopt(curl, CURLOPT_COOKIEFILE, dldir + "session.txt");
-				curl_easy_setopt(curl, CURLOPT_COOKIEJAR, dldir + "session.txt");
-				curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteToStringCallback);
-				curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
-				res = curl_easy_perform(curl);
-				curl_easy_cleanup(curl);
-				strstrm << readBuffer;
-				i = 0;
-				while (getline(strstrm, line)){
-					switch (i){
-					case 0:
-						if (line == "OK"){
-							loginok = true;
-						}
-						break;
-					case 1:
-						if (!loginok){
-							cout << "Login error: " << line << endl;
-						}
-						else{
-							userid = atoi(line.c_str());
-						}
-						break;
-
-					case 2:
-						username = line;
-						break;
-					case 3:
-						email = line;
-						break;
-					case 4:
-						title = line;
-						break;
+			string post = string("username=") + username + "&password=" + password; //TODO: Escape username and password
+			strstrm << curlLoadStringFromUrl("http://www.seedofandromeda.com/updater/auth.php?action=login", post); //TODO: Change to libcurl with ssl so https can be used
+			i = 0;
+			while (getline(strstrm, line)){
+				switch (i){
+				case 0:
+					if (line == "OK"){
+						loginok = true;
 					}
-					i++;
-				}
-				strstrm.clear();
-				strstrm.str(std::string());
-			}
+					break;
+				case 1:
+					if (!loginok){
+						cout << "Login error: " << line << endl;
+					}
+					else{
+						userid = atoi(line.c_str());
+					}
+					break;
 
+				case 2:
+					username = line;
+					break;
+				case 3:
+					email = line;
+					break;
+				case 4:
+					title = line;
+					break;
+				}
+				i++;
+			}
+			strstrm.clear();
+			strstrm.str(std::string());
 		}
+
 	}
 	if (loginok){
 		cout << "Hello " << username << ", " << title << ", " << email << "! You have been logged in. Your user id seems to be " << userid << endl;
@@ -207,7 +147,7 @@ int main(int argc, char* argv[])
 	urlstrm << "http://www.seedofandromeda.com/updater/update.php?version=" << version;
 	string url = urlstrm.str();
 	cout << "Downloading from " << url << endl;
-	int curlout = curlLoadFileFromUrl(url, dldir + "latest.txt");
+	int curlout = curlLoadFileFromUrl(url, dldir + "latest.txt", xferinfo);
 
 	cout << "cURL returns " << curlout << endl;
 
@@ -244,14 +184,14 @@ int main(int argc, char* argv[])
 			else if (i == 2){
 				int latestupdaterver = atoi(line.c_str());
 				if (latestupdaterver > VERSION){
-					if (useappdata && latestupdaterver == newupdaterversion){
+					if (latestupdaterver == newupdaterversion){
 						cout << "Launching updater from " << dldir << endl;
 						_chdir((dldir).c_str());
 						system((dldir + "SoAUpdater.exe -noappdata").c_str());
 						return 0;
 					}
 					else
-						if (useappdata && latestupdaterver > newupdaterversion){
+						if (latestupdaterver > newupdaterversion){
 						updatelauncher = true;
 						}
 						else{
@@ -263,7 +203,7 @@ int main(int argc, char* argv[])
 			else if (i == 3 && updatelauncher){
 				cout << "Updating launcher at " << dldir << endl;
 				input.close();
-				curlout = curlLoadFileFromUrl(line, dldir + "SoAUpdater.exe");
+				curlout = curlLoadFileFromUrl(line, dldir + "SoAUpdater.exe", xferinfo);
 				cout << "cURL returns " << curlout << endl;
 				if (!update){
 					//If no SoA update is available, rename the latest.txt to version.txt to prevent downloading the launcher on every launch
@@ -285,7 +225,7 @@ int main(int argc, char* argv[])
 
 	}
 	if (update){
-		curlout = curlLoadFileFromUrl(updateurl, dldir + "latest.zip");
+		curlout = curlLoadFileFromUrl(updateurl, dldir + "latest.zip", xferinfo);
 		cout << "cURL returns " << curlout << endl;
 		cout << "Unpacking the update..." << endl;
 		//open zip file
@@ -322,17 +262,9 @@ int main(int argc, char* argv[])
 	return 0;
 }
 
-size_t write_data(void *ptr, size_t size, size_t nmemb, FILE *stream)
-{
-	size_t written;
-	written = fwrite(ptr, size, nmemb, stream);
-	return written;
-}
 
-struct myprogress {
-	double lastruntime;
-	CURL *curl;
-};
+
+
 
 /* this is how the CURLOPT_XFERINFOFUNCTION callback works */
 static int xferinfo(void *p,
@@ -367,91 +299,6 @@ static int xferinfo(void *p,
 	return 0;
 }
 
-int curlLoadFileFromUrl(string url, string savefilename)
-{
-	CURL *curl_handle;
-	struct myprogress prog;
-
-	FILE *bodyfile;
-
-	curl_global_init(CURL_GLOBAL_ALL);
-
-	/* init the curl session */
-	curl_handle = curl_easy_init();
-	if (curl_handle){
-		prog.lastruntime = 0;
-		prog.curl = curl_handle;
-		/* set URL to get */
-		curl_easy_setopt(curl_handle, CURLOPT_URL, url.c_str());
-
-		/* no progress meter please */
-		curl_easy_setopt(curl_handle, CURLOPT_NOPROGRESS, 0L);
-		curl_easy_setopt(curl_handle, CURLOPT_XFERINFOFUNCTION, xferinfo);
-		/* pass the struct pointer into the xferinfo function, note that this is
-		an alias to CURLOPT_PROGRESSDATA */
-		curl_easy_setopt(curl_handle, CURLOPT_XFERINFODATA, &prog);
-
-		/* send all data to this function  */
-		curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, write_data);
-
-		/* we tell libcurl to follow redirection */
-		curl_easy_setopt(curl_handle, CURLOPT_FOLLOWLOCATION, 1L);
-
-		/* open the file */
-		fopen_s(&bodyfile, savefilename.c_str(), "wb");
-		if (bodyfile == NULL) {
-			curl_easy_cleanup(curl_handle);
-			return -1;
-		}
-
-		/* we want the body be written to this file handle instead of stdout */
-		curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, bodyfile);
-		CURLcode res = CURLE_OK;
-		/* get it! */
-		cout << endl;
-		res = curl_easy_perform(curl_handle);
-		cout << endl;
-
-		/* close the body file */
-		fclose(bodyfile);
-
-		/* cleanup curl stuff */
-		curl_easy_cleanup(curl_handle);
-		if (res != CURLE_OK){
-			fprintf(stderr, "%s\n", curl_easy_strerror(res));
-			return -1;
-		}
-	}
-	else{
-		return -1;
-	}
-}
-
-static size_t WriteToStringCallback(void *contents, size_t size, size_t nmemb, void *userp)
-{
-	((std::string*)userp)->append((char*)contents, size * nmemb);
-	return size * nmemb;
-}
-
-
-std::wstring ExpandEnvStrings(const std::wstring& source)
-{
-	DWORD len;
-	std::wstring result;
-	len = ::ExpandEnvironmentStringsW(source.c_str(), 0, 0);
-	if (len == 0)
-	{
-		return result;
-	}
-	result.resize(len);
-	len = ::ExpandEnvironmentStringsW(source.c_str(), &result[0], len);
-	if (len == 0)
-	{
-		return result;
-	}
-	result.pop_back(); //Get rid of extra null
-	return result;
-}
 
 void SetStdinEcho(bool enable = true)
 {

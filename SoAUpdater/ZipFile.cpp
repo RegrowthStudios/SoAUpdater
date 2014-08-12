@@ -13,17 +13,11 @@ using namespace std;
 
 void MakeDirectory(const char *fileName)
 {
-	size_t origsize = strlen(fileName) + 1;
-	const size_t newsize = 100;
-	size_t convertedChars = 0;
-	wchar_t wcstring[FILENAME_MAX];
-	mbstowcs_s(&convertedChars, wcstring, origsize - 1, fileName, _TRUNCATE);
-
-	DWORD dwAttrib = GetFileAttributes(wcstring);
+	DWORD dwAttrib = GetFileAttributes(fileName);
 	if (!(dwAttrib != INVALID_FILE_ATTRIBUTES &&
 		(dwAttrib & FILE_ATTRIBUTE_DIRECTORY))){
 
-		if (!CreateDirectory(wcstring, NULL)){
+		if (!CreateDirectory(fileName, NULL)){
 			LPVOID lpMsgBuf;
 			DWORD dw = GetLastError();
 
@@ -36,7 +30,7 @@ void MakeDirectory(const char *fileName)
 				MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
 				(LPTSTR)&lpMsgBuf,
 				0, NULL);
-			_tprintf(L"%s", lpMsgBuf);
+			_tprintf("%s", lpMsgBuf);
 		}
 	}
 }

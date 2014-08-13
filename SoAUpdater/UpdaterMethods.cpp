@@ -33,11 +33,11 @@ string getDlDir(){
 
 
 login_info checkLogin(){
-	return parseUserData(curlLoadStringFromUrl("http://www.seedofandromeda.com/updater/auth.php?action=checklogin")); //TODO: Change to libcurl with ssl so https can be used
+	return parseUserData(curlLoadStringFromUrl("https://www.seedofandromeda.com/updater/auth.php?action=checklogin")); //TODO: Change to libcurl with ssl so https can be used
 }
 login_info doLogin(string username, string password){
 	string post = string("username=") + username + "&password=" + password;
-	return parseUserData(curlLoadStringFromUrl("http://www.seedofandromeda.com/updater/auth.php?action=login", post)); //TODO: Change to libcurl with ssl so https can be used
+	return parseUserData(curlLoadStringFromUrl("https://www.seedofandromeda.com/updater/auth.php?action=login", post)); //TODO: Change to libcurl with ssl so https can be used
 }
 
 login_info parseUserData(string response){
@@ -76,7 +76,7 @@ login_info parseUserData(string response){
 }
 
 version_info checkLatestVersion(int gameVersion){
-	return parseVersionInfo(curlLoadStringFromUrl("http://www.seedofandromeda.com/updater/update.php?updaterversion=" + to_string(VERSION) + "&gameversion=" + to_string(gameVersion)));
+	return parseVersionInfo(curlLoadStringFromUrl("https://www.seedofandromeda.com/updater/update.php?updaterversion=" + to_string(VERSION) + "&gameversion=" + to_string(gameVersion)));
 }
 
 

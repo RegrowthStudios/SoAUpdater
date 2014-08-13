@@ -9,24 +9,24 @@ const int VERSION = 6;
 
 
 struct myprogress {
-	double lastruntime;
-	CURL *curl;
+    double lastruntime;
+    CURL *curl;
 };
 
 struct login_info {
-	bool success;
-	std::string errorMsg;
-	int userID;
-	std::string username;
-	std::string email;
-	std::string custom_title;
+    bool success;
+    std::string errorMsg;
+    int userID;
+    std::string username;
+    std::string email;
+    std::string custom_title;
 };
 
 struct version_info {
-	int gameVersion;
-	std::string gameUrl;
-	int updaterVersion;
-	std::string updaterUrl;
+    int gameVersion;
+    std::string gameUrl;
+    int updaterVersion;
+    std::string updaterUrl;
 };
 
 

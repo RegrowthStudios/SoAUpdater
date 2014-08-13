@@ -7,15 +7,15 @@
 
 using namespace std;
 
-class ZipFile{
+class ZipFile {
 public:
-	ZipFile(string fileName);
-	~ZipFile();
-	unsigned char *readFile(string fileName, size_t &fileSize);
-	int extractZip(string outputDir);
-	bool fail();
+    ZipFile(string fileName);
+    ~ZipFile();
+    unsigned char *readFile(string fileName, size_t &fileSize);
+    int extractZip(string outputDir);
+    bool fail();
 private:
-	unzFile zipfile;
-	unz_global_info global_info;
-	bool failure;
+    unzFile zipfile;
+    unz_global_info global_info;
+    bool failure;
 };

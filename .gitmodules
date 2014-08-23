@@ -1,3 +1,3 @@
 [submodule "deps"]
 	path = deps
-	url = https://github.com/RegrowthStudios/SoADeps
+	url = git@github.com:RegrowthStudios/SoADeps.git

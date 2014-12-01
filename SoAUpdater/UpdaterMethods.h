@@ -1,17 +1,10 @@
 #include "stdafx.h"
 #include <iostream>
-#include "curl/curl.h"
 
 
 
 //Version of this release
 const int VERSION = 6;
-
-
-struct myprogress {
-    double lastruntime;
-    CURL *curl;
-};
 
 struct login_info {
     bool success;
@@ -44,7 +37,7 @@ void writeVersionFile(version_info ver);
 void runSoA(int version);
 
 
-int curlLoadFileFromUrl(std::string url, std::string savefilename, int(*xferinfo)(void(*), curl_off_t, curl_off_t, curl_off_t, curl_off_t));
+int curlLoadFileFromUrl(std::string url, std::string savefilename);
 std::string curlLoadStringFromUrl(std::string url, std::string postfields = "");
 std::wstring ExpandEnvStrings(const std::wstring& source);
 size_t write_data(void *ptr, size_t size, size_t nmemb, FILE *stream);
